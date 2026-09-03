@@ -1,0 +1,3899 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<!-- Tambahkan kode ini di bagian <head> -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker terdaftar:', reg))
+        .catch(err => console.error('Pendaftaran Service Worker gagal:', err));
+    });
+  }
+</script>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pengukuran Dosis Absolute - TRS-398</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- KaTeX CSS & JS Engine untuk Tampilan Formula Matematika & LaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Chart.js Engine untuk Dashboard Statistik -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    /* Styling warna spesifikasi */
+    .bg-input-yellow {
+      background-color: #ffff33 !important;
+      color: #000000;
+      font-weight: 600;
+    }
+    .bg-select-gray {
+      background-color: #d1d5db !important;
+      color: #111827;
+      font-weight: 600;
+    }
+    .bg-result-green {
+      background-color: #bbf7d0 !important;
+      color: #064e3b;
+      font-weight: 700;
+    }
+
+    /* KaTeX typography adjustment */
+    .katex {
+      font-size: 1.05em;
+    }
+
+    /* Custom scrollbar untuk sidebar & modal */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Print media query untuk lembar kerja QA TRS-398 */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #printArea, #printArea * {
+        visibility: visible;
+      }
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 15px;
+        background: white !important;
+        color: black !important;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 min-h-screen flex flex-col font-sans">
+
+  <!-- OVERLAY SIDEBAR PADA SELELURUH LAYAR (MOBILE) -->
+  <div id="sidebarOverlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden transition-opacity lg:hidden"></div>
+
+  <div class="flex flex-1 relative overflow-hidden">
+    
+    <!-- SIDEBAR NAVIGATION PANEL -->
+    <aside id="mainSidebar" class="fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white flex flex-col transform -translate-x-full lg:translate-x-0 transition-transform duration-300 ease-in-out shadow-2xl lg:shadow-none">
+      
+      <!-- HEADER SIDEBAR DINAMIS (NAMA & LOGO RUMAH SAKIT) -->
+      <div class="p-4 bg-slate-950 border-b border-slate-800 flex justify-between items-center">
+        <div class="flex items-center gap-3 min-w-0">
+          <div id="sidebarLogoContainer" class="bg-blue-600 p-1.5 rounded-lg text-white flex-shrink-0 w-10 h-10 flex items-center justify-center overflow-hidden">
+            <i id="sidebarLogoIcon" class="fa-solid fa-hospital text-xl"></i>
+            <img id="sidebarLogoImg" src="" alt="Logo RS" class="w-full h-full object-contain hidden" onerror="this.classList.add('hidden'); document.getElementById('sidebarLogoIcon').classList.remove('hidden');">
+          </div>
+          <div class="min-w-0 flex-1">
+            <h2 id="sidebarHospitalName" class="font-black text-xs sm:text-sm tracking-wide text-blue-400 truncate uppercase">RSUD Dr. MOEWARDI</h2>
+            <p id="sidebarHospitalDept" class="text-[11px] text-slate-400 font-semibold truncate">Instalasi Radioterapi</p>
+          </div>
+        </div>
+        <button type="button" onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white text-xl p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- MENU APLIKASI & SETUP -->
+      <nav class="flex-1 overflow-y-auto p-3 space-y-1.5 text-sm">
+        
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 pt-2 pb-1">
+          Aplikasi Utama
+        </div>
+
+        <!-- MENU DASHBOARD STATISTIK (PALING ATAS) -->
+        <button type="button" onclick="closeSidebarOnMobile(); openDashboardModal();" class="w-full text-left px-3 py-2.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold flex items-center gap-3 transition group border border-amber-500/30 shadow-sm">
+          <i class="fa-solid fa-chart-line text-amber-400 group-hover:scale-110 transition-transform"></i>
+          <span>Dashboard Statistik</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); focusMainForm();" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-800 text-slate-200 font-semibold flex items-center gap-3 transition group active:bg-blue-600">
+          <i class="fa-solid fa-calculator text-blue-400 group-hover:scale-110 transition-transform"></i>
+          <span>Pengukuran Dosis</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openSearchModal();" class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-800 text-slate-200 font-semibold flex items-center gap-3 transition group">
+          <i class="fa-solid fa-database text-yellow-400 group-hover:scale-110 transition-transform"></i>
+          <span>Riwayat Pengukuran</span>
+        </button>
+
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 pt-3 pb-1 border-t border-slate-800/80 mt-2">
+          Konfigurasi Master Data
+        </div>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openMachineModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-server text-amber-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Setup Pesawat Linac</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openDetectorModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-bullseye text-sky-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Setup Detektor Chamber</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openBeamQualityModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-chart-line text-emerald-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Setup PDD/TPR</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openKQModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-table-list text-rose-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Tabel $k_Q$ (TRS-398)</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openHospitalModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-hospital text-teal-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Setup Rumah Sakit</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openStaffModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-user-gear text-indigo-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Setup Fisikawan & Dokter</span>
+        </button>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openCalibrationModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-sliders text-purple-400 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Konfigurasi Kalibrasi</span>
+        </button>
+
+        <div class="text-[11px] font-bold uppercase tracking-wider text-slate-500 px-3 pt-3 pb-1 border-t border-slate-800/80 mt-2">
+          Integrasi Cloud
+        </div>
+
+        <button type="button" onclick="closeSidebarOnMobile(); openGoogleSheetsModal();" class="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+          <i class="fa-solid fa-file-excel text-emerald-500 w-5 text-center group-hover:scale-110 transition-transform"></i>
+          <span>Google Sheets</span>
+        </button>
+
+      </nav>
+
+      <!-- FOOTER SIDEBAR STATUS SINKRONISASI -->
+      <div class="p-3 bg-slate-950 border-t border-slate-800 text-xs text-slate-400 space-y-1">
+        <div class="flex items-center justify-between">
+          <span>Status Database:</span>
+          <span id="sidebarDbStatus" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            LOKAL
+          </span>
+        </div>
+        <div class="text-[10px] text-slate-500 truncate" id="sidebarDbDetail">
+          Penyimpanan Browser
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- KONTEN UTAMA APLIKASI -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-y-auto">
+      
+      <!-- HEADER UTAMA TERMASUK TOGGLE SIDEBAR -->
+      <header class="bg-black text-white px-3 sm:px-6 py-3 flex justify-between items-center sticky top-0 z-30 shadow-md">
+        
+        <div class="flex items-center gap-3">
+          <button type="button" onclick="toggleSidebar()" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition focus:outline-none">
+            <i class="fa-solid fa-bars text-lg"></i>
+          </button>
+          <h1 class="text-base sm:text-xl md:text-2xl font-black tracking-widest uppercase text-left truncate">
+            PENGUKURAN DOSIS ABSOLUTE
+          </h1>
+        </div>
+
+        <!-- INDICATOR GOOGLE SHEETS & MAXIMIZE BUTTON -->
+        <div class="flex items-center gap-2">
+          <!-- INDIKATOR GOOGLE SHEETS -->
+          <button type="button" onclick="openGoogleSheetsModal()" id="sheetStatusBadge" title="Klik untuk Pengaturan Google Sheets" class="no-print text-xs px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 transition flex items-center gap-1.5">
+            <span id="sheetBadgeDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block"></span>
+            <span id="sheetBadgeText" class="hidden sm:inline font-semibold">Sheets: Offline</span>
+          </button>
+
+          <!-- TOMBOL MAXIMIZE / FULLSCREEN -->
+          <button type="button" onclick="toggleFullscreen()" id="btnFullscreen" title="Layar Penuh (Maximize)" class="no-print p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center justify-center">
+            <i id="iconFullscreen" class="fa-solid fa-expand text-sm"></i>
+          </button>
+        </div>
+
+      </header>
+
+      <!-- FORM UTAMA PENGUKURAN DOSIS -->
+      <main id="mainFormContainer" class="p-2 sm:p-4 md:p-6 space-y-5 max-w-6xl mx-auto w-full">
+        
+        <div class="bg-white rounded-xl shadow-md border-2 border-slate-800 overflow-hidden p-4 sm:p-6 space-y-5">
+          
+          <!-- BARIS IDENTIFIKASI & METADATA -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
+            
+            <!-- Kolom Kiri: Pesawat, Energi, Detektor, Dataset PDD/TPR -->
+            <div class="space-y-3">
+              <!-- Nama Pesawat -->
+              <div class="flex items-center">
+                <label class="w-36 font-bold text-blue-900 text-sm sm:text-base">Nama Pesawat</label>
+                <div class="flex-1 flex gap-1.5">
+                  <select id="namaPesawat" onchange="onMachineChange()" class="w-full bg-select-gray border border-slate-400 rounded px-3 py-1.5 text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                  </select>
+                  <button type="button" onclick="openMachineModal()" class="no-print bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 rounded border border-slate-400" title="Kelola Master Pesawat">
+                    <i class="fa-solid fa-gear text-xs"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Energi -->
+              <div class="flex items-center">
+                <label class="w-36 font-bold text-blue-900 text-sm sm:text-base">Energi</label>
+                <div class="flex-1">
+                  <select id="energi" onchange="onEnergyChange()" class="w-full bg-select-gray border border-slate-400 rounded px-3 py-1.5 text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                  </select>
+                </div>
+              </div>
+
+              <!-- Detektor -->
+              <div class="flex items-center">
+                <label class="w-36 font-bold text-blue-900 text-sm sm:text-base">Detektor</label>
+                <div class="flex-1 flex gap-1.5">
+                  <select id="detektor" onchange="onChamberChange()" class="w-full bg-select-gray border border-slate-400 rounded px-3 py-1.5 text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                  </select>
+                  <button type="button" onclick="openDetectorModal()" class="no-print bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 rounded border border-slate-400" title="Kelola Setup Detektor">
+                    <i class="fa-solid fa-bullseye text-xs"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Data PDD / TPR Berdasarkan Tanggal -->
+              <div class="flex items-center">
+                <label class="w-36 font-bold text-blue-900 text-sm sm:text-base">Data PDD/TPR (Tgl)</label>
+                <div class="flex-1 flex gap-1.5">
+                  <select id="selectBQData" onchange="onBeamQualityChange()" class="w-full bg-select-gray border border-slate-400 rounded px-3 py-1.5 text-sm sm:text-base focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer">
+                  </select>
+                  <button type="button" onclick="openBeamQualityModal()" class="no-print bg-slate-200 hover:bg-slate-300 text-slate-800 px-2 rounded border border-slate-400" title="Kelola Dataset Beam Quality">
+                    <i class="fa-solid fa-calendar-days text-xs"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Kolom Kanan: Tanggal Pengukuran, ID Record, Ringkasan PDD/TPR -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-blue-900 text-sm sm:text-base">Pengukuran :</span>
+                <span id="displayTanggal" class="font-bold text-slate-900 text-sm sm:text-base">-</span>
+              </div>
+
+              <div class="flex items-center justify-between gap-2">
+                <span class="font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">ID RECORD</span>
+                <input type="text" id="idRecord" class="font-bold text-blue-800 text-right bg-transparent border-b border-dashed border-slate-400 focus:outline-none px-2 py-0.5 flex-1 min-w-0 truncate" value="">
+              </div>
+
+              <!-- PARAMETER PDD D10, D20, TPR2010 RINGKAS -->
+              <div class="p-2.5 bg-slate-50 border border-slate-300 rounded space-y-1 text-xs sm:text-sm">
+                <div class="flex justify-between items-center font-bold text-slate-700 flex-wrap gap-1">
+                  <span>$D_{10}$: <input type="number" step="0.1" id="inputD10" oninput="autoCalcTPRMainForm(); calculateDose()" class="w-16 bg-input-yellow border rounded text-center px-1 font-mono text-xs"> %</span>
+                  <span>$D_{20}$: <input type="number" step="0.1" id="inputD20" oninput="autoCalcTPRMainForm(); calculateDose()" class="w-16 bg-input-yellow border rounded text-center px-1 font-mono text-xs"> %</span>
+                  <span>$TPR_{20,10}$: <input type="number" step="0.001" id="inputTPR2010" oninput="calculateDose()" class="w-20 bg-emerald-100 font-bold border border-emerald-400 rounded text-center px-1 font-mono text-xs" title="Otomatis dihitung dari formula TRS-398 D20/D10"></span>
+                </div>
+                <div class="flex justify-between items-center text-xs border-t pt-1">
+                  <span class="text-slate-600">$k_Q$ (Interpolasi): <strong id="lblKQInterpolated" class="text-rose-700 font-mono font-bold">0.9980</strong></span>
+                  <button type="button" onclick="openKQModal()" class="no-print text-[11px] text-blue-700 font-bold underline hover:text-blue-900 flex items-center gap-1">
+                    <i class="fa-solid fa-calculator text-rose-500"></i> Cek Tabel & Interpolasi
+                  </button>
+                </div>
+                <div class="flex justify-between items-center text-xs text-slate-500 pt-0.5">
+                  <span>PDD ($z_{ref} = 10\text{cm}$): <strong id="lblPDDRef" class="text-blue-900">65.10 %</strong></span>
+                  <span id="lblDefaultBadge" class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 font-bold rounded text-[10px]">DEFAULT SET</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BARIS PARAMETER INPUT FISIKA & HASIL DOSIS (3 KOLOM SEJAJAR & AKOMODATIF LAYAR HP) -->
+          <div class="border-t pt-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-y-3 gap-x-4 items-start">
+              
+              <!-- KOLOM 1: PARAMETER LINGKUNGAN (P, T, LAPANGAN) -->
+              <div class="space-y-2.5">
+                <!-- Tekanan (P) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">P</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="number" step="0.1" id="inputP" value="" oninput="calculateDose()" placeholder="misal: 99.3" class="w-32 bg-input-yellow border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">kPa</span>
+                  </div>
+                </div>
+
+                <!-- Suhu (T) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">T</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="number" step="0.1" id="inputT" value="" oninput="calculateDose()" placeholder="misal: 22.4" class="w-32 bg-input-yellow border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">°C</span>
+                  </div>
+                </div>
+
+                <!-- Lapangan Radiasi -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">Lapangan</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="text" id="inputLapangan" value="10x10" oninput="calculateDose()" class="w-32 bg-input-yellow border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:ring-2 focus:ring-yellow-500 focus:outline-none">
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">cm²</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- KOLOM 2: PARAMETER PENYINARAN & VOLTASE (MU, V1, V2) -->
+              <div class="space-y-2.5">
+                <!-- MU (Monitor Unit) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">MU</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <select id="selectMU" onchange="calculateDose()" class="w-32 bg-select-gray border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none cursor-pointer">
+                      <option value="100">100</option>
+                      <option value="200" selected>200</option>
+                      <option value="300">300</option>
+                      <option value="400">400</option>
+                      <option value="500">500</option>
+                    </select>
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">MU</span>
+                  </div>
+                </div>
+
+                <!-- V1 (Voltase Operasional) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">V1</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <select id="selectV1" onchange="updateVoltageLabels(); calculateDose();" class="w-32 bg-select-gray border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none cursor-pointer">
+                      <option value="300">300</option>
+                      <option value="400" selected>400</option>
+                      <option value="500">500</option>
+                    </select>
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">Volt</span>
+                  </div>
+                </div>
+
+                <!-- V2 (Voltase Rendah) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-blue-900 text-sm sm:text-base">V2</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <select id="selectV2" onchange="updateVoltageLabels(); calculateDose();" class="w-32 bg-select-gray border border-slate-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none cursor-pointer">
+                      <option value="100" selected>100</option>
+                      <option value="150">150</option>
+                      <option value="200">200</option>
+                    </select>
+                    <span class="font-bold text-blue-900 text-sm sm:text-base">Volt</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- KOLOM 3: HASIL PERHITUNGAN DOSIS & STATUS -->
+              <div class="space-y-2.5">
+                <!-- D (zref) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-slate-900 text-sm sm:text-base">$D(z_{ref})$</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="text" id="outDzref" readonly class="w-32 bg-result-green border border-emerald-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none" value="-">
+                    <span class="font-bold text-slate-800 text-xs sm:text-sm" id="unitDzref">Gy/200MU</span>
+                  </div>
+                </div>
+
+                <!-- D (zmax) -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-slate-900 text-sm sm:text-base">$D(z_{max})$</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="text" id="outDzmax" readonly class="w-32 bg-result-green border border-emerald-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none" value="-">
+                    <span class="font-bold text-slate-800 text-xs sm:text-sm" id="unitDzmax">Gy/200MU</span>
+                  </div>
+                </div>
+
+                <!-- Deviasi -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-slate-900 text-sm sm:text-base">Deviasi</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <input type="text" id="outDeviasi" readonly class="w-32 bg-result-green border border-emerald-400 rounded px-2.5 py-1 text-center font-bold text-sm sm:text-base focus:outline-none" value="-">
+                    <span class="font-bold text-slate-800 text-sm sm:text-base">%</span>
+                  </div>
+                </div>
+
+                <!-- Keterangan Status -->
+                <div class="flex items-center">
+                  <label class="w-28 font-bold text-slate-900 text-sm sm:text-base">Keterangan</label>
+                  <div class="flex items-center gap-2 flex-1">
+                    <div id="outKeterangan" class="w-32 bg-slate-200 text-slate-700 border border-slate-400 rounded px-2 py-1 text-center font-black text-xs sm:text-sm tracking-wide uppercase">
+                      SIAP UKUR
+                    </div>
+                    <button type="button" onclick="toggleDetailsModal()" class="no-print text-xs text-blue-700 underline font-semibold hover:text-blue-900 ml-1 whitespace-nowrap">
+                      Detail TRS-398
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- TABEL ELEKTROMETER & CATATAN -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 border-t pt-4">
+            
+            <!-- Tabel Pengukuran Voltase & Polaritas -->
+            <div class="lg:col-span-7 overflow-x-auto">
+              <table class="w-full border-collapse border-2 border-black text-center text-sm sm:text-base">
+                <thead>
+                  <tr class="bg-slate-200 border-b-2 border-black font-bold">
+                    <th class="border-r-2 border-black py-1.5 px-2 w-28" id="thVoltRatio">V 400/100</th>
+                    <th class="border-r-2 border-black py-1.5 px-2" id="thM1">M1 [+400]</th>
+                    <th class="border-r-2 border-black py-1.5 px-2" id="thMneg">M [-400]</th>
+                    <th class="py-1.5 px-2" id="thM2">M2 [+100]</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Baris 1 -->
+                  <tr class="border-b border-black">
+                    <td class="border-r-2 border-black font-bold bg-white">1</td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="m1_1" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="mneg_1" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="p-0.5">
+                      <input type="number" step="0.01" id="m2_1" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                  </tr>
+                  <!-- Baris 2 -->
+                  <tr class="border-b border-black">
+                    <td class="border-r-2 border-black font-bold bg-white">2</td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="m1_2" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="mneg_2" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="p-0.5">
+                      <input type="number" step="0.01" id="m2_2" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                  </tr>
+                  <!-- Baris 3 -->
+                  <tr class="border-b-2 border-black">
+                    <td class="border-r-2 border-black font-bold bg-white">3</td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="m1_3" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="border-r-2 border-black p-0.5">
+                      <input type="number" step="0.01" id="mneg_3" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                    <td class="p-0.5">
+                      <input type="number" step="0.01" id="m2_3" value="" oninput="calculateDose()" class="w-full bg-input-yellow text-center py-1 font-bold focus:outline-none">
+                    </td>
+                  </tr>
+                  <!-- Baris Rata-rata (Mean) -->
+                  <tr class="bg-white font-bold text-base">
+                    <td class="border-r-2 border-black py-1.5">Mean</td>
+                    <td class="border-r-2 border-black py-1.5 text-black" id="meanM1">-</td>
+                    <td class="border-r-2 border-black py-1.5 text-black" id="meanMneg">-</td>
+                    <td class="py-1.5 text-black" id="meanM2">-</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Kolom Catatan -->
+            <div class="lg:col-span-5 flex flex-col">
+              <label class="font-bold text-slate-900 text-sm mb-1">Catatan:</label>
+              <textarea id="inputCatatan" rows="5" class="w-full flex-1 bg-input-yellow border-2 border-black p-2.5 font-semibold text-sm rounded focus:outline-none resize-none" placeholder="Masukkan catatan QA di sini..."></textarea>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ACTION BUTTONS BAR -->
+        <div class="no-print bg-slate-900 p-3.5 rounded-xl border-2 border-slate-800 shadow-md">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 max-w-4xl mx-auto">
+            
+            <!-- CARI / HISTORY -->
+            <button type="button" onclick="openSearchModal()" class="bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-2.5 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm border border-indigo-500">
+              <i class="fa-solid fa-magnifying-glass"></i> CARI
+            </button>
+
+            <!-- CETAK / FORM LAPORAN RESMI -->
+            <button type="button" onclick="openOfficialReportModal()" class="bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white font-bold py-2.5 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm border border-sky-500">
+              <i class="fa-solid fa-file-invoice"></i> LAPORAN
+            </button>
+
+            <!-- UPDATE -->
+            <button type="button" onclick="updateCurrentRecord()" class="bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white font-bold py-2.5 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm border border-amber-500">
+              <i class="fa-solid fa-pen-to-square"></i> UPDATE
+            </button>
+
+            <!-- SIMPAN -->
+            <button type="button" onclick="saveNewRecord()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-2.5 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm border border-emerald-500">
+              <i class="fa-solid fa-floppy-disk"></i> SIMPAN
+            </button>
+
+            <!-- RESET -->
+            <button type="button" onclick="resetForm()" class="bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white font-bold py-2.5 px-3 rounded-lg shadow-md transition-all flex items-center justify-center gap-2 uppercase tracking-wider text-xs sm:text-sm col-span-2 sm:col-span-1 border border-rose-500">
+              <i class="fa-solid fa-rotate-left"></i> RESET
+            </button>
+
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+  </div>
+
+  <!-- MODAL: SETUP DETEKTOR IONIZATION CHAMBER -->
+  <div id="detectorModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-bullseye text-sky-400"></i>
+          Setup Detektor & Ion Chamber (CRUD)
+        </h3>
+        <button type="button" onclick="closeDetectorModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form id="formDetector" onsubmit="saveDetector(event)" class="p-3.5 bg-slate-50 border border-slate-300 rounded-lg space-y-3">
+          <input type="hidden" id="editDetectorId" value="">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nama Detektor / Chamber</label>
+              <input type="text" id="detName" required placeholder="FC65-G / PTW 30013" class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold focus:ring-2 focus:ring-sky-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Serial Number (S/N)</label>
+              <input type="text" id="detSN" placeholder="SN-4021" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono focus:ring-2 focus:ring-sky-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">$N_{D,w,Q_0}$ Kalibrasi (Gy/nC)</label>
+              <input type="number" step="0.00001" id="detNDW" required placeholder="0.04892" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono font-bold text-blue-900 focus:ring-2 focus:ring-sky-500 focus:outline-none">
+            </div>
+          </div>
+          
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Preset Nilai $k_{Q,Q_0}$ Per Energi (Default Fallback):</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <div>
+                <span class="text-[11px] text-slate-500 block font-semibold">6 MV FFF</span>
+                <input type="number" step="0.001" id="detKQ_6FFF" value="0.998" class="w-full border rounded px-2 py-1 font-mono text-center bg-white">
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-500 block font-semibold">6 MV</span>
+                <input type="number" step="0.001" id="detKQ_6MV" value="0.992" class="w-full border rounded px-2 py-1 font-mono text-center bg-white">
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-500 block font-semibold">10 MV</span>
+                <input type="number" step="0.001" id="detKQ_10MV" value="0.984" class="w-full border rounded px-2 py-1 font-mono text-center bg-white">
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-500 block font-semibold">10 MV FFF</span>
+                <input type="number" step="0.001" id="detKQ_10FFF" value="0.987" class="w-full border rounded px-2 py-1 font-mono text-center bg-white">
+              </div>
+              <div>
+                <span class="text-[11px] text-slate-500 block font-semibold">15 MV</span>
+                <input type="number" step="0.001" id="detKQ_15MV" value="0.976" class="w-full border rounded px-2 py-1 font-mono text-center bg-white">
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" onclick="clearDetectorForm()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded text-xs">Clear</button>
+            <button type="submit" class="px-4 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded text-xs shadow">Simpan Detektor</button>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto border rounded-lg shadow-sm">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800 text-white font-bold">
+              <tr>
+                <th class="p-2 border-r border-slate-700">Nama Detektor</th>
+                <th class="p-2 border-r border-slate-700">S/N</th>
+                <th class="p-2 border-r border-slate-700">$N_{D,w}$ (Gy/nC)</th>
+                <th class="p-2 border-r border-slate-700">Preset $k_Q$</th>
+                <th class="p-2 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="detectorTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="closeDetectorModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETUP MASTER PESAWAT LINAC -->
+  <div id="machineModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-3xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-server text-amber-400"></i>
+          Master Pesawat Linac (CRUD)
+        </h3>
+        <button type="button" onclick="closeMachineModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form id="formMachine" onsubmit="saveMachine(event)" class="p-3.5 bg-slate-50 border border-slate-300 rounded-lg space-y-3">
+          <input type="hidden" id="editMachineId" value="">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nama Pesawat</label>
+              <input type="text" id="mchName" required placeholder="misal: VitalBeam" class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Vendor / Pabrikan</label>
+              <input type="text" id="mchVendor" placeholder="misal: Varian" class="w-full border rounded px-2.5 py-1.5 bg-white">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Serial Number (S/N)</label>
+              <input type="text" id="mchSN" placeholder="misal: SN-15420" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono">
+            </div>
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Daftar Energi yang Didukung:</label>
+            <div class="flex flex-wrap gap-4 pt-1">
+              <label class="inline-flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer">
+                <input type="checkbox" id="mchEng_6FFF" class="w-4 h-4 text-blue-600 rounded"> 6 MV FFF
+              </label>
+              <label class="inline-flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer">
+                <input type="checkbox" id="mchEng_6MV" class="w-4 h-4 text-blue-600 rounded"> 6 MV
+              </label>
+              <label class="inline-flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer">
+                <input type="checkbox" id="mchEng_10MV" class="w-4 h-4 text-blue-600 rounded"> 10 MV
+              </label>
+              <label class="inline-flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer">
+                <input type="checkbox" id="mchEng_10FFF" class="w-4 h-4 text-blue-600 rounded"> 10 MV FFF
+              </label>
+              <label class="inline-flex items-center gap-1.5 font-semibold text-slate-800 cursor-pointer">
+                <input type="checkbox" id="mchEng_15MV" class="w-4 h-4 text-blue-600 rounded"> 15 MV
+              </label>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2 pt-1">
+            <button type="button" onclick="clearMachineForm()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded text-xs">Clear</button>
+            <button type="submit" class="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded text-xs shadow">Simpan Pesawat</button>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto border rounded-lg shadow-sm">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800 text-white font-bold">
+              <tr>
+                <th class="p-2 border-r border-slate-700">Nama Pesawat</th>
+                <th class="p-2 border-r border-slate-700">Vendor</th>
+                <th class="p-2 border-r border-slate-700">S/N</th>
+                <th class="p-2 border-r border-slate-700">Energi</th>
+                <th class="p-2 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="machineTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="closeMachineModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETUP BEAM QUALITY (D10, D20, TPR20,10, PDD) -->
+  <div id="beamQualityModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-emerald-400"></i>
+          Setup Dataset Beam Quality ($D_{10}$, $D_{20}$, $TPR_{20,10}$, PDD)
+        </h3>
+        <button type="button" onclick="closeBeamQualityModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form id="formBQ" onsubmit="saveBQDataset(event)" class="p-3.5 bg-slate-50 border border-slate-300 rounded-lg space-y-3">
+          <input type="hidden" id="editBQId" value="">
+          <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Tanggal Data</label>
+              <input type="date" id="bqDate" required class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Label Dataset</label>
+              <input type="text" id="bqLabel" placeholder="misal: QA Tahunan 2025" required class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Pesawat</label>
+              <select id="bqMachine" onchange="onBQMachineChange()" class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold">
+              </select>
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Energi</label>
+              <select id="bqEnergy" class="w-full border rounded px-2.5 py-1.5 bg-white font-semibold">
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">$D_{10}$ (%)</label>
+              <input type="number" step="0.001" id="bqD10" oninput="autoCalcTPRInModal()" required placeholder="65.100" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono font-bold text-blue-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">$D_{20}$ (%)</label>
+              <input type="number" step="0.001" id="bqD20" oninput="autoCalcTPRInModal()" required placeholder="38.200" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono font-bold text-blue-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">$TPR_{20,10}$ (TRS-398)</label>
+              <input type="number" step="0.001" id="bqTPR" required placeholder="0.665" class="w-full border rounded px-2.5 py-1.5 bg-emerald-50 border-emerald-300 font-mono font-bold text-emerald-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">PDD ($z_{ref}=10\text{cm}$) %</label>
+              <input type="number" step="0.001" id="bqPDD" readonly required placeholder="65.100" class="w-full border rounded px-2.5 py-1.5 bg-slate-100 cursor-not-allowed font-mono font-bold text-slate-800" title="Otomatis menyalin nilai dari D10 (Readonly)">
+            </div>
+          </div>
+
+          <div class="flex justify-between items-center pt-1">
+            <label class="inline-flex items-center gap-2 font-bold text-slate-800 cursor-pointer">
+              <input type="checkbox" id="bqIsDefault" class="w-4 h-4 text-emerald-600 rounded">
+              Jadikan Dataset Default untuk Pesawat & Energi Ini
+            </label>
+            <div class="flex gap-2">
+              <button type="button" onclick="clearBQForm()" class="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded text-xs">Clear</button>
+              <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs shadow">Simpan Beam Quality</button>
+            </div>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto border rounded-lg shadow-sm">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-800 text-white font-bold">
+              <tr>
+                <th class="p-2 border-r border-slate-700">Tanggal</th>
+                <th class="p-2 border-r border-slate-700">Label</th>
+                <th class="p-2 border-r border-slate-700">Pesawat (Energi)</th>
+                <th class="p-2 border-r border-slate-700">$D_{10}$</th>
+                <th class="p-2 border-r border-slate-700">$D_{20}$</th>
+                <th class="p-2 border-r border-slate-700">$TPR_{20,10}$</th>
+                <th class="p-2 border-r border-slate-700">PDD Ref</th>
+                <th class="p-2 border-r border-slate-700 text-center">Default</th>
+                <th class="p-2 text-center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="bqTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="closeBeamQualityModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETUP TABEL kQ TRS-398 & INTERPOLASI LINIER -->
+  <div id="kqModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-table-list text-rose-400"></i>
+          CRUD Tabel $k_{Q,Q_0}$ TRS-398 & Mesin Interpolasi $TPR_{20,10}$
+        </h3>
+        <button type="button" onclick="closeKQModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        
+        <div class="p-3 bg-slate-100 border border-slate-300 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-3">
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <label class="font-bold text-slate-800 whitespace-nowrap">Tipe Chamber / Detektor:</label>
+            <select id="selectKQChamber" onchange="renderKQTable()" class="bg-white border border-slate-400 rounded px-3 py-1 font-semibold text-blue-900 w-full sm:w-64">
+            </select>
+          </div>
+          <div class="flex items-center gap-2 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded text-emerald-900 font-mono font-bold text-xs">
+            <span>Uji Interpolasi $TPR_{20,10}$:</span>
+            <input type="number" step="0.001" id="testTPRInput" value="0.665" oninput="testKQInterpolation()" class="w-20 bg-white border border-emerald-400 rounded px-1.5 py-0.5 text-center font-bold">
+            <span>&rarr; $k_Q$: <strong id="testKQResult" class="text-rose-700 font-black">0.9881</strong></span>
+          </div>
+        </div>
+
+        <form id="formKQPoint" onsubmit="saveKQPoint(event)" class="p-3 bg-slate-50 border border-slate-300 rounded-lg space-y-2">
+          <input type="hidden" id="editKQPointIndex" value="-1">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nilai $TPR_{20,10}$</label>
+              <input type="number" step="0.001" min="0.40" max="0.90" id="kqInputTPR" required placeholder="misal: 0.680" class="w-full border rounded px-2.5 py-1 font-mono text-center bg-white">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nilai $k_{Q,Q_0}$ (Tabel TRS-398)</label>
+              <input type="number" step="0.0001" min="0.80" max="1.10" id="kqInputVal" required placeholder="misal: 0.9840" class="w-full border rounded px-2.5 py-1 font-mono text-center bg-white font-bold text-rose-900">
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="submit" class="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-1 px-3 rounded shadow text-xs">
+                Simpan Titik Data
+              </button>
+              <button type="button" onclick="clearKQPointForm()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-1 px-3 rounded text-xs">
+                Clear
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <div class="overflow-x-auto border rounded-lg shadow-sm">
+          <table class="w-full text-center text-xs">
+            <thead class="bg-slate-800 text-white font-bold">
+              <tr>
+                <th class="p-2 border-r border-slate-700">No</th>
+                <th class="p-2 border-r border-slate-700 font-mono">$TPR_{20,10}$</th>
+                <th class="p-2 border-r border-slate-700 font-mono">$k_{Q,Q_0}$ (TRS-398)</th>
+                <th class="p-2 border-r border-slate-700">Rentang / Keterangan</th>
+                <th class="p-2">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="kqTableBody" class="divide-y divide-slate-200">
+            </tbody>
+          </table>
+        </div>
+
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs space-y-1">
+          <h4 class="font-bold text-blue-900 flex items-center gap-1">
+            <i class="fa-solid fa-calculator"></i> Persamaan Interpolasi Linier Presisi TRS-398:
+          </h4>
+          <p class="font-mono text-blue-800 text-center py-1">
+            $$k_Q(TPR) = k_{Q,1} + \frac{TPR - TPR_1}{TPR_2 - TPR_1} \times (k_{Q,2} - k_{Q,1})$$
+          </p>
+        </div>
+
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-between items-center">
+        <button type="button" onclick="confirmResetKQTable()" class="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-bold shadow">
+          <i class="fa-solid fa-rotate-left"></i> Reset Tabel ke Standar IAEA TRS-398
+        </button>
+        <button type="button" onclick="closeKQModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Selesai</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETUP RUMAH SAKIT -->
+  <div id="hospitalModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-hospital text-teal-400"></i>
+          Setup Profil Rumah Sakit
+        </h3>
+        <button type="button" onclick="closeHospitalModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm">
+        <form id="formHospital" onsubmit="saveHospitalInfo(event)" class="space-y-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Nama Rumah Sakit:</label>
+            <input type="text" id="rsNama" required placeholder="RSUD Dr. MOEWARDI SURAKARTA" class="w-full border rounded px-3 py-1.5 bg-slate-50 font-bold text-slate-900">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Instalasi / Departemen:</label>
+            <input type="text" id="rsDept" required placeholder="INSTALASI RADIOTERAPI" class="w-full border rounded px-3 py-1.5 bg-slate-50 font-bold text-slate-900">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Alamat Rumah Sakit:</label>
+            <input type="text" id="rsAlamat" required placeholder="Jl. Kol. Soetarto 132 Surakarta" class="w-full border rounded px-3 py-1.5 bg-slate-50 font-semibold text-slate-800">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">URL Logo Rumah Sakit:</label>
+            <input type="url" id="rsLogoUrl" placeholder="https://example.com/logo.png" class="w-full border rounded px-3 py-1.5 bg-slate-50 font-mono text-xs">
+          </div>
+
+          <div class="pt-2 flex justify-end gap-2">
+            <button type="button" onclick="closeHospitalModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded">Batal</button>
+            <button type="submit" class="px-4 py-1.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded shadow">Simpan Profil RS</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: SETUP SDM (FISIKAWAN MEDIS & DOKTER) -->
+  <div id="staffModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-user-gear text-indigo-400"></i>
+          Master Staff (Fisikawan Medis & Dokter Sp.Onk.Rad)
+        </h3>
+        <button type="button" onclick="closeStaffModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 overflow-y-auto space-y-6 text-xs sm:text-sm">
+        
+        <!-- SECTION FISIKAWAN MEDIS -->
+        <div class="border rounded-xl p-4 bg-slate-50 space-y-3">
+          <h4 class="font-extrabold text-indigo-900 text-sm flex items-center gap-2 border-b pb-2">
+            <i class="fa-solid fa-user-check text-indigo-600"></i> Data Fisikawan Medis
+          </h4>
+          <form id="formPhysicist" onsubmit="savePhysicist(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input type="hidden" id="editPhysId" value="">
+            <div>
+              <label class="block font-semibold mb-1">Nama Fisikawan & Gelar</label>
+              <input type="text" id="physName" required placeholder="Fisikawan, S.Si, M.Si" class="w-full border rounded px-2.5 py-1.5 bg-white font-bold">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1">NIP / NUP</label>
+              <input type="text" id="physNIP" placeholder="NIP. 19850101 201001 1 001" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono">
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 rounded shadow">Simpan Fisikawan</button>
+            </div>
+          </form>
+
+          <div class="overflow-x-auto border rounded bg-white">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-800 text-white font-bold">
+                <tr><th class="p-2">Nama</th><th class="p-2">NIP</th><th class="p-2 text-center">Aksi</th></tr>
+              </thead>
+              <tbody id="physicistTableBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SECTION DOKTER / KA INSTALASI -->
+        <div class="border rounded-xl p-4 bg-slate-50 space-y-3">
+          <h4 class="font-extrabold text-blue-900 text-sm flex items-center gap-2 border-b pb-2">
+            <i class="fa-solid fa-user-doctor text-blue-600"></i> Data Dokter Sp.Onk.Rad / Ka. Instalasi
+          </h4>
+          <form id="formDoctor" onsubmit="saveDoctor(event)" class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <input type="hidden" id="editDocId" value="">
+            <div>
+              <label class="block font-semibold mb-1">Nama Dokter & Gelar</label>
+              <input type="text" id="docName" required placeholder="dr. Kepala, Sp.Onk.Rad" class="w-full border rounded px-2.5 py-1.5 bg-white font-bold">
+            </div>
+            <div>
+              <label class="block font-semibold mb-1">NIP / Jabatan</label>
+              <input type="text" id="docNIP" placeholder="NIP. 19750505 200501 2 002" class="w-full border rounded px-2.5 py-1.5 bg-white font-mono">
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 rounded shadow">Simpan Dokter</button>
+            </div>
+          </form>
+
+          <div class="overflow-x-auto border rounded bg-white">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-800 text-white font-bold">
+                <tr><th class="p-2">Nama</th><th class="p-2">NIP / Jabatan</th><th class="p-2 text-center">Aksi</th></tr>
+              </thead>
+              <tbody id="doctorTableBody" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="closeStaffModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Selesai</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: KONEKSI GOOGLE SHEETS -->
+  <div id="googleSheetsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-file-excel text-emerald-400"></i>
+          Integrasi Database Google Sheets
+        </h3>
+        <button type="button" onclick="closeGoogleSheetsModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-5 space-y-4 text-xs sm:text-sm">
+        <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-950 space-y-1">
+          <h4 class="font-bold flex items-center gap-1">
+            <i class="fa-solid fa-cloud-arrow-up text-emerald-600"></i> Petunjuk Integrasi Web App:
+          </h4>
+          <ol class="list-decimal list-inside space-y-1 text-xs">
+            <li>Tempelkan URL Google Apps Script Web App yang telah di-deploy.</li>
+            <li>Klik tombol <strong>Tes Koneksi & Sync</strong> untuk menyinkronkan data.</li>
+            <li>Seluruh rekaman dan setup akan otomatis tersimpan di cloud Google Sheets.</li>
+          </ol>
+        </div>
+
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">URL Google Apps Script Web App:</label>
+          <input type="url" id="gsAppUrl" placeholder="https://script.google.com/macros/s/.../exec" class="w-full border rounded px-3 py-2 font-mono text-xs bg-slate-50 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-2 pt-2">
+          <button type="button" onclick="testGoogleSheetsConnection()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded shadow transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-plug"></i> Tes & Sinkronkan Data
+          </button>
+          <button type="button" onclick="disconnectGoogleSheets()" class="bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold py-2 px-3 rounded transition">
+            Disconnect
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="closeGoogleSheetsModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SEARCH / HISTORY -->
+  <div id="searchModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-database text-yellow-400"></i>
+          Riwayat Pengukuran Tersimpan (Lokal)
+        </h3>
+        <button type="button" onclick="closeSearchModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="p-4 bg-slate-100 border-b flex flex-col sm:flex-row gap-2 justify-between items-center">
+        <div class="relative w-full sm:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+          <input type="text" id="filterKeyword" oninput="renderHistoryTable()" placeholder="Cari ID, Pesawat, Energi..." class="w-full pl-8 pr-3 py-1.5 text-sm bg-white border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div class="flex gap-2 w-full sm:w-auto justify-end">
+          <button type="button" onclick="exportJSON()" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded text-xs font-bold flex items-center gap-1 shadow">
+            <i class="fa-solid fa-file-export"></i> Backup JSON
+          </button>
+          <label class="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer shadow">
+            <i class="fa-solid fa-file-import"></i> Restore
+            <input type="file" id="importFileInput" onchange="importJSON(event)" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto p-4">
+        <table class="w-full border-collapse text-left text-xs sm:text-sm">
+          <thead>
+            <tr class="bg-slate-200 text-slate-800 font-bold border-b">
+              <th class="p-2">ID Record</th>
+              <th class="p-2">Tanggal</th>
+              <th class="p-2">Pesawat / Energi</th>
+              <th class="p-2">$D(z_{max})$</th>
+              <th class="p-2">Deviasi</th>
+              <th class="p-2">Status</th>
+              <th class="p-2 text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody" class="divide-y divide-slate-200">
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-between items-center text-xs text-slate-500">
+        <span id="recordCountLabel">0 rekaman tersimpan</span>
+        <button type="button" onclick="closeSearchModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: FORM LAPORAN RESMI QA TRS-398 (PRINT-FRIENDLY REPORT) -->
+  <div id="reportModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl max-w-4xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col">
+      
+      <div class="bg-slate-900 text-white px-5 py-3 flex justify-between items-center no-print">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-file-contract text-sky-400"></i>
+          Pratinjau Lembar Kerja Laporan Resmi IAEA TRS-398
+        </h3>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1 rounded text-xs flex items-center gap-1.5 shadow">
+            <i class="fa-solid fa-print"></i> Cetak / Simpan PDF
+          </button>
+          <button type="button" onclick="closeOfficialReportModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+        </div>
+      </div>
+
+      <div class="p-6 sm:p-8 overflow-y-auto bg-white text-black font-sans space-y-4 text-xs sm:text-sm" id="printArea">
+        
+        <div class="border-b-2 border-black pb-3 flex items-center gap-4">
+          <img id="repHospitalLogo" src="https://www.rsudmoewardi.go.id/wp-content/uploads/2020/06/moewardi2.png" alt="Logo RS" class="h-16 sm:h-20 w-auto object-contain flex-shrink-0" onerror="this.style.display='none'">
+          <div class="text-center flex-1">
+            <h2 id="repHospitalName" class="text-base sm:text-lg font-black tracking-wide uppercase text-slate-900">RUMAH SAKIT RSUD Dr. MOEWARDI SURAKARTA</h2>
+            <h3 id="repHospitalDept" class="text-sm sm:text-base font-bold uppercase text-slate-800">INSTALASI RADIOTERAPI</h3>
+            <p id="repHospitalAddress" class="text-xs text-slate-600 font-semibold">Jl. Kol. Soetarto 132 Surakarta</p>
+          </div>
+        </div>
+
+        <div class="text-center py-1">
+          <h4 class="text-sm sm:text-base font-extrabold uppercase text-blue-950 tracking-wide">LEMBAR KERJA VERIFIKASI DOSIS ABSOLUT (IAEA TRS-398)</h4>
+          <p class="text-[11px] sm:text-xs text-slate-600 italic mt-0.5">Protokol Kode Praktik Internasional Penentuan Dosis Serap Air pada Berkas Foton Berenergi Tinggi</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 border border-black p-3 bg-slate-50/50">
+          <div class="space-y-1">
+            <div class="flex"><span class="w-32 font-bold">No. Laporan/ID:</span> <span id="repIdRecord" class="font-mono font-bold text-blue-900">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Tanggal Pengukuran:</span> <span id="repTanggal">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Pesawat / Linac:</span> <span id="repPesawat" class="font-bold">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Nomor Seri Linac:</span> <span id="repPesawatSN">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Kualitas Berkas:</span> <span id="repEnergi" class="font-bold text-blue-900">-</span></div>
+          </div>
+          <div class="space-y-1">
+            <div class="flex"><span class="w-32 font-bold">Detektor Chamber:</span> <span id="repDetektor" class="font-bold">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Nomor Seri Detektor:</span> <span id="repDetektorSN">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">Faktor $N_{D,w,Q_0}$:</span> <span id="repNDW" class="font-mono font-bold">- Gy/nC</span></div>
+            <div class="flex"><span class="w-32 font-bold">Faktor Kualitas $k_Q$:</span> <span id="repKQ" class="font-mono font-bold">-</span></div>
+            <div class="flex"><span class="w-32 font-bold">PDD($10\text{cm}$) / $TPR_{20,10}$:</span> <span id="repPDDInfo" class="font-mono">-</span></div>
+          </div>
+        </div>
+
+        <div class="border border-black p-3 space-y-2">
+          <h4 class="font-bold text-xs uppercase bg-slate-200 px-2 py-0.5 border-b border-black">1. Kondisi Lingkungan & Geometri Penyinaran</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <div><span class="text-slate-600 block">Suhu Udara ($T$):</span> <strong id="repT" class="font-mono">- °C</strong></div>
+            <div><span class="text-slate-600 block">Tekanan Udara ($P$):</span> <strong id="repP" class="font-mono">- kPa</strong></div>
+            <div><span class="text-slate-600 block">Faktor Koreksi $k_{TP}$:</span> <strong id="repKTP" class="font-mono font-bold text-blue-900">-</strong></div>
+            <div><span class="text-slate-600 block">Ukuran Lapangan:</span> <strong id="repLapangan">- cm²</strong></div>
+            <div><span class="text-slate-600 block">Geometri Pengukuran:</span> <strong>SSD 100 cm / Air</strong></div>
+            <div><span class="text-slate-600 block">Kedalaman Ukur ($z_{ref}$):</span> <strong>10.0 cm</strong></div>
+            <div><span class="text-slate-600 block">Monitor Unit (MU):</span> <strong id="repMU" class="font-bold">- MU</strong></div>
+            <div><span class="text-slate-600 block">Tegangan Polarisasi:</span> <strong id="repVoltages" class="font-mono">-</strong></div>
+          </div>
+        </div>
+
+        <div class="border border-black p-3 space-y-2">
+          <h4 class="font-bold text-xs uppercase bg-slate-200 px-2 py-0.5 border-b border-black">2. Data Bacaan Elektrometer & Faktor Koreksi</h4>
+          <table class="w-full text-center text-xs border border-black">
+            <thead>
+              <tr class="bg-slate-100 font-bold border-b border-black">
+                <th class="p-1 border-r border-black">No</th>
+                <th class="p-1 border-r border-black" id="repThM1">M1 (+V1) [nC/rdg]</th>
+                <th class="p-1 border-r border-black" id="repThMneg">M- (-V1) [nC/rdg]</th>
+                <th class="p-1" id="repThM2">M2 (+V2) [nC/rdg]</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-slate-300">
+                <td class="p-1 border-r border-black font-bold">1</td>
+                <td class="p-1 border-r border-black font-mono" id="repM1_1">-</td>
+                <td class="p-1 border-r border-black font-mono" id="repMneg_1">-</td>
+                <td class="p-1 font-mono" id="repM2_1">-</td>
+              </tr>
+              <tr class="border-b border-slate-300">
+                <td class="p-1 border-r border-black font-bold">2</td>
+                <td class="p-1 border-r border-black font-mono" id="repM1_2">-</td>
+                <td class="p-1 border-r border-black font-mono" id="repMneg_2">-</td>
+                <td class="p-1 font-mono" id="repM2_2">-</td>
+              </tr>
+              <tr class="border-b border-black">
+                <td class="p-1 border-r border-black font-bold">3</td>
+                <td class="p-1 border-r border-black font-mono" id="repM1_3">-</td>
+                <td class="p-1 border-r border-black font-mono" id="repMneg_3">-</td>
+                <td class="p-1 font-mono" id="repM2_3">-</td>
+              </tr>
+              <tr class="bg-slate-100 font-bold">
+                <td class="p-1 border-r border-black">Rata-rata (Mean)</td>
+                <td class="p-1 border-r border-black font-mono font-bold" id="repMeanM1">-</td>
+                <td class="p-1 border-r border-black font-mono font-bold" id="repMeanMneg">-</td>
+                <td class="p-1 font-mono font-bold" id="repMeanM2">-</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="grid grid-cols-3 gap-2 pt-1 font-mono text-xs">
+            <div class="p-1.5 border rounded bg-slate-50"><span class="text-slate-600 block text-[11px]">Faktor Polaritas ($k_{pol}$):</span> <strong id="repKpol" class="text-slate-900">-</strong></div>
+            <div class="p-1.5 border rounded bg-slate-50"><span class="text-slate-600 block text-[11px]">Rekombinasi Ion ($k_s$ Tabel 4.VII):</span> <strong id="repKs" class="text-slate-900">-</strong></div>
+            <div class="p-1.5 border rounded bg-slate-50"><span class="text-slate-600 block text-[11px]">$M_Q$ Terkoreksi:</span> <strong id="repMQ" class="text-blue-900 font-bold">- nC</strong></div>
+          </div>
+        </div>
+
+        <div class="border-2 border-black p-3 space-y-2 bg-slate-50/50">
+          <h4 class="font-bold text-xs uppercase bg-slate-900 text-white px-2 py-0.5">3. Hasil Evaluasi Dosis Absolut</h4>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+            <div class="p-2 border border-black bg-white rounded">
+              <span class="block text-slate-600 text-xs">Dosis pada $z_{ref} = 10\text{cm}$:</span>
+              <span class="text-base font-black font-mono text-slate-900" id="repDzref">-</span>
+            </div>
+            <div class="p-2 border border-black bg-white rounded">
+              <span class="block text-slate-600 text-xs">Dosis pada $z_{max}$ ($d_{max}$):</span>
+              <span class="text-base font-black font-mono text-slate-900" id="repDzmax">-</span>
+            </div>
+            <div class="p-2 border border-black bg-white rounded">
+              <span class="block text-slate-600 text-xs">Deviasi Output:</span>
+              <span class="text-base font-black font-mono text-blue-900" id="repDeviasi">-</span>
+            </div>
+            <div class="p-2 border border-black bg-white rounded">
+              <span class="block text-slate-600 text-xs">Status Evaluasi:</span>
+              <span class="text-base font-black uppercase" id="repStatus">-</span>
+            </div>
+          </div>
+          
+          <div class="p-2 bg-white border border-slate-300 text-xs rounded">
+            <strong>Catatan Petugas:</strong>
+            <p id="repCatatan" class="text-slate-700 italic mt-0.5">-</p>
+          </div>
+        </div>
+
+        <!-- TANDA TANGAN STAFF -->
+        <div class="grid grid-cols-2 gap-8 pt-4 text-center text-xs">
+          <div>
+            <p class="text-slate-600">Dikerjakan Oleh (Fisikawan Medis),</p>
+            <div class="h-16 border-b border-black mx-12 flex items-end justify-center pb-1">
+              <select id="selectRepPhysicist" class="no-print border rounded text-xs p-1 bg-slate-50 font-bold text-blue-900">
+              </select>
+            </div>
+            <p class="font-bold mt-1" id="lblRepPhysName">( ............................................................ )</p>
+            <p class="text-[11px] text-slate-500" id="lblRepPhysNIP">Fisikawan Medis Klinis Radioterapi</p>
+          </div>
+          <div>
+            <p class="text-slate-600">Mengetahui (Ka. Instalasi / Dokter Sp.Onk.Rad),</p>
+            <div class="h-16 border-b border-black mx-12 flex items-end justify-center pb-1">
+              <select id="selectRepDoctor" class="no-print border rounded text-xs p-1 bg-slate-50 font-bold text-blue-900">
+              </select>
+            </div>
+            <p class="font-bold mt-1" id="lblRepDocName">( ............................................................ )</p>
+            <p class="text-[11px] text-slate-500" id="lblRepDocNIP">Kepala Instalasi Radioterapi</p>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="bg-slate-100 px-5 py-3 flex justify-end gap-2 no-print border-t">
+        <button type="button" onclick="closeOfficialReportModal()" class="px-4 py-1.5 bg-slate-800 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL: DASHBOARD STATISTIK QA LINAC -->
+  <div id="dashboardModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-xl max-w-6xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden my-auto max-h-[95vh] flex flex-col">
+      
+      <!-- HEADER DASHBOARD -->
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center border-b border-slate-800">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-chart-line text-amber-400 text-xl"></i>
+          <div>
+            <h3 class="font-extrabold text-base tracking-wide uppercase">Dashboard Statistik Deviasi Linac</h3>
+            <p class="text-[11px] text-slate-400">Monitoring Tren & Evaluasi Batas Toleransi Output Dosis Radioterapi</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeDashboardModal()" class="text-slate-300 hover:text-white text-2xl font-bold px-2">&times;</button>
+      </div>
+
+      <!-- KONTEN UTAMA DASHBOARD -->
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-5 bg-slate-50 flex-1 text-xs sm:text-sm">
+        
+        <!-- BARIS FILTER: PESAWAT & RENTANG TANGGAL -->
+        <div class="bg-white p-4 rounded-xl border border-slate-300 shadow-sm space-y-3">
+          <div class="font-bold text-slate-800 flex items-center gap-2 text-xs uppercase tracking-wider text-slate-600">
+            <i class="fa-solid fa-filter text-blue-600"></i> Filter Parameter Statistik
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Jenis Pesawat Linac:</label>
+              <select id="dashFilterMachine" onchange="renderDashboard()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 bg-slate-50 font-bold text-blue-900 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <option value="ALL">-- Semua Pesawat Linac --</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Tanggal Mulai:</label>
+              <input type="date" id="dashFilterStartDate" onchange="renderDashboard()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 bg-slate-50 font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-slate-700 mb-1">Tanggal Akhir:</label>
+              <input type="date" id="dashFilterEndDate" onchange="renderDashboard()" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 bg-slate-50 font-mono font-bold text-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+            </div>
+            <div class="flex items-end gap-2">
+              <button type="button" onclick="resetDashboardFilters()" class="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-1.5 px-3 rounded-lg border border-slate-300 transition text-xs flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-rotate-left"></i> Reset Filter
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUMMARY CARDS / RINGKASAN METRIK -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span class="text-slate-500 text-[11px] font-bold uppercase tracking-wider">Total Pengukuran</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span id="dashMetricTotal" class="text-2xl sm:text-3xl font-black text-slate-900 font-mono">0</span>
+              <span class="text-xs text-slate-400 font-semibold">kali</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span class="text-slate-500 text-[11px] font-bold uppercase tracking-wider">Rata-rata Deviasi</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span id="dashMetricAvgDev" class="text-2xl sm:text-3xl font-black text-blue-900 font-mono">0.00%</span>
+              <span class="text-[10px] text-blue-600 font-bold">Mean</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span class="text-slate-500 text-[11px] font-bold uppercase tracking-wider">Deviasi Maksimum</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span id="dashMetricMaxDev" class="text-2xl sm:text-3xl font-black text-amber-700 font-mono">0.00%</span>
+              <span class="text-[10px] text-amber-600 font-bold">Max Abs</span>
+            </div>
+          </div>
+
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <span class="text-slate-500 text-[11px] font-bold uppercase tracking-wider">Kepatuhan Target (OK)</span>
+            <div class="flex items-baseline justify-between mt-1">
+              <span id="dashMetricPassRate" class="text-2xl sm:text-3xl font-black text-emerald-600 font-mono">100%</span>
+              <span id="dashMetricPassCount" class="text-xs text-emerald-700 font-semibold">0/0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- GRAFIK UTAMA TREN DEVIASI LINAC -->
+        <div class="bg-white p-4 sm:p-5 rounded-xl border border-slate-300 shadow-sm space-y-3">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b pb-2">
+            <div>
+              <h4 class="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-emerald-600"></i>
+                Grafik Tren Deviasi Output Dosis Linac (%)
+              </h4>
+              <p class="text-[11px] text-slate-500">Evaluasi historis deviasi $D(z_{max})$ terhadap batas Toleransi ($\pm 1\%$) & Adjust ($\pm 2\%$)</p>
+            </div>
+
+            <!-- LEGENDA STATUS BATAS -->
+            <div class="flex items-center gap-3 text-[11px] font-semibold flex-wrap">
+              <span class="flex items-center gap-1 text-emerald-700"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span> OK ($\le 1\%$)</span>
+              <span class="flex items-center gap-1 text-amber-700"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Toleransi ($1\% - 2\%$)</span>
+              <span class="flex items-center gap-1 text-rose-700"><span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span> Adjust ($> 2\%$)</span>
+            </div>
+          </div>
+
+          <!-- CANVAS GRAFIK UTAMA -->
+          <div class="relative w-full h-72 sm:h-80 md:h-96">
+            <canvas id="deviationChartCanvas"></canvas>
+          </div>
+        </div>
+
+        <!-- RINGKASAN DISTRIBUSI STATUS & TABEL EVALUASI -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          
+          <!-- CHART DISTRIBUSI PIE/DONUT -->
+          <div class="lg:col-span-4 bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex flex-col justify-between">
+            <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm mb-2 border-b pb-1">
+              <i class="fa-solid fa-chart-pie text-indigo-600"></i> Distribusi Status QA
+            </h4>
+            <div class="relative w-full h-48 sm:h-56 flex items-center justify-center">
+              <canvas id="statusPieChartCanvas"></canvas>
+            </div>
+            <div id="statusPieLegend" class="grid grid-cols-3 gap-1 text-center text-[11px] pt-2 border-t font-bold">
+              <span class="text-emerald-700">OK: <strong id="cntPieOK">0</strong></span>
+              <span class="text-amber-700">Toleransi: <strong id="cntPieTol">0</strong></span>
+              <span class="text-rose-700">Adjust: <strong id="cntPieAdj">0</strong></span>
+            </div>
+          </div>
+
+          <!-- RINGKASAN REKAMAN TERAKHIR DALAM FILTER -->
+          <div class="lg:col-span-8 bg-white p-4 rounded-xl border border-slate-300 shadow-sm flex flex-col">
+            <h4 class="font-extrabold text-slate-900 text-xs sm:text-sm mb-2 border-b pb-1 flex justify-between items-center">
+              <span><i class="fa-solid fa-list-check text-blue-600"></i> Daftar Pengukuran Terfilter</span>
+              <span class="text-[11px] font-normal text-slate-500">Urut Kronologis</span>
+            </h4>
+            <div class="overflow-x-auto flex-1 max-h-56">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-100 font-bold text-slate-700 sticky top-0 border-b">
+                  <tr>
+                    <th class="p-1.5">ID Record</th>
+                    <th class="p-1.5">Tanggal</th>
+                    <th class="p-1.5">Pesawat (Energi)</th>
+                    <th class="p-1.5 text-center">Deviasi</th>
+                    <th class="p-1.5 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="dashTableBody" class="divide-y divide-slate-200">
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- FOOTER DASHBOARD -->
+      <div class="bg-slate-100 px-5 py-3 flex justify-between items-center text-xs text-slate-500 border-t">
+        <span>Garis hijau/kuning menunjukkan batas toleransi IAEA TRS-398 ($\pm 1\%$ & $\pm 2\%$).</span>
+        <button type="button" onclick="closeDashboardModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-lg shadow">Tutup Dashboard</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL DETAIL FORMULA TRS-398 -->
+  <div id="detailsModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-2xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-lg flex items-center gap-2">
+          <i class="fa-solid fa-square-root-variable text-amber-400"></i>
+          Rincian Perhitungan IAEA TRS-398
+        </h3>
+        <button type="button" onclick="toggleDetailsModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+      <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto text-sm">
+        <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-1">
+          <h4 class="font-bold text-blue-900">Formalisme IAEA TRS-398:</h4>
+          <p class="font-mono text-xs text-blue-800">$$D_{w,Q} = M_Q \times N_{D,w,Q_0} \times k_{Q,Q_0}$$</p>
+          <p class="font-mono text-xs text-blue-800">$$M_Q = M_{raw} \times k_{TP} \times k_{pol} \times k_s \times k_{elec}$$</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3 font-mono">
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">Faktor Tekanan & Suhu ($k_{TP}$)</span>
+            <span class="text-base font-bold text-slate-800" id="detailKTP">-</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">Faktor Polaritas ($k_{pol}$)</span>
+            <span class="text-base font-bold text-slate-800" id="detailKpol">-</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded col-span-2">
+            <span class="text-slate-500 block text-xs font-sans font-bold">Faktor Rekombinasi Ion ($k_s$ Tabel 4.VII TRS-398 hal. 52 - Pulsed Beam)</span>
+            <span class="text-base font-bold text-rose-800" id="detailKs">-</span>
+            <div class="text-[11px] text-slate-600 mt-1 font-sans">
+              <p>Formula: $$k_s = a_0 + a_1\left(\frac{M_1}{M_2}\right) + a_2\left(\frac{M_1}{M_2}\right)^2$$</p>
+              <p class="text-[10px] text-slate-500 font-mono" id="detailKsCoeff">-</p>
+            </div>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">$M_Q$ Terkoreksi</span>
+            <span class="text-base font-bold text-slate-800" id="detailMQ">- nC</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">Koefisien Kalibrasi ($N_{D,w}$)</span>
+            <span class="text-base font-bold text-slate-800" id="detailNDW">- Gy/nC</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">Faktor Kualitas Berkas ($k_Q$)</span>
+            <span class="text-base font-bold text-slate-800" id="detailKQ">-</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded">
+            <span class="text-slate-500 block text-xs">Kedalaman Ref ($z_{ref}$) / PDD</span>
+            <span class="text-base font-bold text-slate-800" id="detailPDD">- %</span>
+          </div>
+          <div class="p-2.5 bg-slate-50 border rounded col-span-2">
+            <span class="text-slate-500 block text-xs">Target Dosis ($z_{max}$)</span>
+            <span class="text-base font-bold text-slate-800" id="detailTargetDose">- Gy</span>
+          </div>
+        </div>
+      </div>
+      <div class="bg-slate-100 px-5 py-3 flex justify-end">
+        <button type="button" onclick="toggleDetailsModal()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded font-bold text-sm">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL KONFIGURASI KALIBRASI -->
+  <div id="calibrationModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-xl w-full border-2 border-slate-800 shadow-2xl overflow-hidden">
+      <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+        <h3 class="font-bold text-base flex items-center gap-2">
+          <i class="fa-solid fa-cog text-sky-400"></i>
+          Konfigurasi Faktor Fisika IAEA TRS-398
+        </h3>
+        <button type="button" onclick="closeCalibrationModal()" class="text-slate-300 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+      <div class="p-5 space-y-3.5 text-sm">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Koefisien Kalibrasi Chamber $N_{D,w}$ (Gy/nC):</label>
+          <input type="number" step="0.00001" id="cfgNDW" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Faktor Kualitas $k_Q$:</label>
+            <input type="number" step="0.001" id="cfgKQ" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">PDD pada $z_{ref}=10\text{cm}$ (%):</label>
+            <input type="number" step="0.1" id="cfgPDD" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Suhu Acuan $T_0$ (°C):</label>
+            <input type="number" step="0.1" id="cfgT0" value="20.0" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Tekanan Acuan $P_0$ (kPa):</label>
+            <input type="number" step="0.01" id="cfgP0" value="101.325" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+          </div>
+        </div>
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Target Dosis Acuan per 1 MU (cGy/MU):</label>
+          <input type="number" step="0.01" id="cfgTargetDoseRate" value="1.00" class="w-full border rounded px-3 py-1.5 font-mono text-sm bg-slate-50">
+        </div>
+      </div>
+      <div class="bg-slate-100 px-5 py-3 flex justify-end gap-2">
+        <button type="button" onclick="closeCalibrationModal()" class="px-4 py-1.5 bg-slate-300 hover:bg-slate-400 text-slate-800 rounded font-semibold text-sm">Batal</button>
+        <button type="button" onclick="saveCalibrationSettings()" class="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-sm shadow">Simpan Parameter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL KONFIRMASI -->
+  <div id="confirmModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-sm w-full border-2 border-slate-800 shadow-2xl overflow-hidden p-5 space-y-4">
+      <div class="flex items-center gap-3 text-amber-600 font-bold text-lg">
+        <i class="fa-solid fa-triangle-exclamation text-2xl"></i>
+        <span>Konfirmasi Tindakan</span>
+      </div>
+      <p id="confirmModalMsg" class="text-sm font-semibold text-slate-700">Apakah Anda yakin ingin melanjutkan tindakan ini?</p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeConfirmModal()" class="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded text-xs">Batal</button>
+        <button type="button" onclick="executeConfirmModal()" class="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded text-xs shadow">Ya, Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-2.5 rounded-lg shadow-xl text-sm font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none z-50">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400"></i>
+    <span id="toastMsg">Pesan Berhasil</span>
+  </div>
+
+  <script>
+    // Storage Keys
+    const STORAGE_KEY = 'TRS398_DOSIMETRY_RECORDS';
+    const CALIBRATION_KEY = 'TRS398_CALIBRATION_PRESETS';
+    const MACHINE_STORAGE_KEY = 'TRS398_MACHINES_LIST';
+    const DETECTOR_STORAGE_KEY = 'TRS398_DETECTORS_LIST';
+    const BQ_STORAGE_KEY = 'TRS398_BEAM_QUALITY_DATASETS';
+    const KQ_TABLE_STORAGE_KEY = 'TRS398_KQ_LOOKUP_TABLES';
+    const HOSPITAL_INFO_KEY = 'TRS398_HOSPITAL_INFO';
+    const PHYSICISTS_KEY = 'TRS398_PHYSICISTS';
+    const DOCTORS_KEY = 'TRS398_DOCTORS';
+    const GS_URL_KEY = 'TRS398_GOOGLE_SHEETS_URL';
+
+    // Active State Variables
+    let activeCalibration = {
+      NDW: 0.05000,
+      kQ: 0.9980,
+      pdd: 65.10,
+      T0: 20.0,
+      P0: 101.325,
+      targetDoseRate: 1.00,
+      chamberName: 'FC65-G/IC70 Farmer'
+    };
+    let calculatedDetails = {};
+    let deviationChartInstance = null;
+    let pieChartInstance = null;
+
+    // Default Fallback Datasets
+    const DEFAULT_HOSPITAL_INFO = {
+      namaRS: "RSUD Dr. MOEWARDI SURAKARTA",
+      namaDept: "INSTALASI RADIOTERAPI",
+      alamatRS: "Jl. Kol. Soetarto 132 Surakarta",
+      logoUrl: "https://www.rsudmoewardi.go.id/wp-content/uploads/2020/06/moewardi2.png"
+    };
+
+    const DEFAULT_PHYSICISTS = [
+      { id: 'phys_1', nama: 'Fisikawan Medis 1, S.Si, M.Si', nip: 'NIP. 19850101 201001 1 001' }
+    ];
+
+    const DEFAULT_DOCTORS = [
+      { id: 'doc_1', nama: 'dr. Kepala Instalasi, Sp.Onk.Rad', nip: 'NIP. 19750505 200501 2 002' }
+    ];
+
+    const DEFAULT_MACHINES = [
+      { id: 'mch_1', name: 'Halcyon', vendor: 'Varian Medical Systems', sn: 'HC-8812', energies: ['6 MV FFF'] },
+      { id: 'mch_2', name: 'VitalBeam', vendor: 'Varian Medical Systems', sn: 'VB-4521', energies: ['6 MV FFF', '6 MV', '10 MV', '10 MV FFF', '15 MV'] },
+      { id: 'mch_3', name: 'TrueBeam', vendor: 'Varian Medical Systems', sn: 'TB-2890', energies: ['6 MV FFF', '6 MV', '10 MV', '10 MV FFF', '15 MV'] },
+      { id: 'mch_4', name: 'Clinac iX', vendor: 'Varian Medical Systems', sn: 'IX-1044', energies: ['6 MV', '10 MV', '15 MV'] },
+      { id: 'mch_5', name: 'Elekta Versa HD', vendor: 'Elekta', sn: 'VHD-9031', energies: ['6 MV', '6 MV FFF', '10 MV', '10 MV FFF'] }
+    ];
+
+    const DEFAULT_DETECTORS = [
+      { id: 'det_1', name: 'FC65-G/IC70 Farmer', sn: 'SN-4821', NDW: 0.05000, kQ: { "6 MV FFF": 0.998, "6 MV": 0.992, "10 MV": 0.984, "10 MV FFF": 0.987, "15 MV": 0.976 } },
+      { id: 'det_2', name: 'PTW 30013 Farmer 0.6cc', sn: 'SN-0341', NDW: 0.05380, kQ: { "6 MV FFF": 0.997, "6 MV": 0.992, "10 MV": 0.983, "10 MV FFF": 0.986, "15 MV": 0.975 } },
+      { id: 'det_3', name: 'IBA CC13 Compact', sn: 'SN-1092', NDW: 0.05010, kQ: { "6 MV FFF": 0.999, "6 MV": 0.994, "10 MV": 0.986, "10 MV FFF": 0.989, "15 MV": 0.978 } },
+      { id: 'det_4', name: 'PTW 31010 Semiflex', sn: 'SN-2849', NDW: 0.04980, kQ: { "6 MV FFF": 0.998, "6 MV": 0.993, "10 MV": 0.985, "10 MV FFF": 0.988, "15 MV": 0.977 } }
+    ];
+
+    const DEFAULT_BQ_DATASETS = [
+      { id: 'bq_1', date: '2025-01-15', label: 'Komisioning 2025', machine: 'Halcyon', energy: '6 MV FFF', d10: 64.8, d20: 37.8, tpr2010: 0.679, pddRef: 64.80, isDefault: true },
+      { id: 'bq_2', date: '2025-01-15', label: 'Komisioning 2025', machine: 'VitalBeam', energy: '6 MV FFF', d10: 65.1, d20: 38.2, tpr2010: 0.683, pddRef: 65.10, isDefault: true },
+      { id: 'bq_3', date: '2025-01-15', label: 'Komisioning 2025', machine: 'VitalBeam', energy: '6 MV', d10: 67.0, d20: 39.5, tpr2010: 0.687, pddRef: 67.00, isDefault: true }
+    ];
+
+    const DEFAULT_KQ_TABLES = {
+      "FC65-G/IC70 Farmer": [
+        { tpr: 0.500, kq: 1.0000 }, { tpr: 0.530, kq: 1.0000 }, { tpr: 0.560, kq: 0.9990 },
+        { tpr: 0.590, kq: 0.9960 }, { tpr: 0.620, kq: 0.9920 }, { tpr: 0.650, kq: 0.9870 },
+        { tpr: 0.680, kq: 0.9800 }, { tpr: 0.710, kq: 0.9720 }, { tpr: 0.740, kq: 0.9620 },
+        { tpr: 0.770, kq: 0.9500 }, { tpr: 0.800, kq: 0.9360 }
+      ],
+      "PTW 30013 Farmer 0.6cc": [
+        { tpr: 0.500, kq: 1.0000 }, { tpr: 0.530, kq: 1.0000 }, { tpr: 0.560, kq: 0.9990 },
+        { tpr: 0.590, kq: 0.9960 }, { tpr: 0.620, kq: 0.9910 }, { tpr: 0.650, kq: 0.9860 },
+        { tpr: 0.680, kq: 0.9790 }, { tpr: 0.710, kq: 0.9710 }, { tpr: 0.740, kq: 0.9610 },
+        { tpr: 0.770, kq: 0.9490 }, { tpr: 0.800, kq: 0.9350 }
+      ]
+    };
+
+    // SIDEBAR & NAVIGATION TOGGLES
+    function toggleSidebar() {
+      const sidebar = document.getElementById('mainSidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      if (!sidebar || !overlay) return;
+      sidebar.classList.toggle('-translate-x-full');
+      overlay.classList.toggle('hidden');
+    }
+
+    function closeSidebarOnMobile() {
+      if (window.innerWidth < 1024) {
+        toggleSidebar();
+      }
+    }
+
+    function focusMainForm() {
+      const container = document.getElementById('mainFormContainer');
+      if (container) {
+        container.scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+
+    function toggleFullscreen() {
+      const icon = document.getElementById('iconFullscreen');
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(err => {
+          showToast(`Error Fullscreen: ${err.message}`, "error");
+        });
+        if (icon) icon.className = "fa-solid fa-compress text-sm";
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+          if (icon) icon.className = "fa-solid fa-expand text-sm";
+        }
+      }
+    }
+
+    // HOSPITAL & STAFF HELPERS
+    function getHospitalInfo() {
+      try {
+        const data = localStorage.getItem(HOSPITAL_INFO_KEY);
+        return data ? JSON.parse(data) : DEFAULT_HOSPITAL_INFO;
+      } catch (e) {
+        return DEFAULT_HOSPITAL_INFO;
+      }
+    }
+
+    function updateSidebarBranding() {
+      const hospital = getHospitalInfo();
+      const nameEl = document.getElementById('sidebarHospitalName');
+      const deptEl = document.getElementById('sidebarHospitalDept');
+      const logoImg = document.getElementById('sidebarLogoImg');
+      const logoIcon = document.getElementById('sidebarLogoIcon');
+
+      if (nameEl) nameEl.innerText = hospital.namaRS || "RUMAH SAKIT";
+      if (deptEl) deptEl.innerText = hospital.namaDept || "Instalasi Radioterapi";
+
+      if (logoImg && logoIcon) {
+        if (hospital.logoUrl && hospital.logoUrl.trim() !== '') {
+          logoImg.src = hospital.logoUrl;
+          logoImg.classList.remove('hidden');
+          logoIcon.classList.add('hidden');
+        } else {
+          logoImg.classList.add('hidden');
+          logoIcon.classList.remove('hidden');
+        }
+      }
+    }
+
+    function openHospitalModal() {
+      const h = getHospitalInfo();
+      document.getElementById('rsNama').value = h.namaRS || '';
+      document.getElementById('rsDept').value = h.namaDept || '';
+      document.getElementById('rsAlamat').value = h.alamatRS || '';
+      document.getElementById('rsLogoUrl').value = h.logoUrl || '';
+      document.getElementById('hospitalModal').classList.remove('hidden');
+    }
+
+    function closeHospitalModal() {
+      document.getElementById('hospitalModal').classList.add('hidden');
+    }
+
+    function saveHospitalInfo(e) {
+      if (e) e.preventDefault();
+      const info = {
+        namaRS: document.getElementById('rsNama').value.trim(),
+        namaDept: document.getElementById('rsDept').value.trim(),
+        alamatRS: document.getElementById('rsAlamat').value.trim(),
+        logoUrl: document.getElementById('rsLogoUrl').value.trim()
+      };
+      localStorage.setItem(HOSPITAL_INFO_KEY, JSON.stringify(info));
+      updateSidebarBranding();
+      sendToGoogleSheets('saveHospitalInfo', info);
+      closeHospitalModal();
+      showToast("Profil Rumah Sakit berhasil diperbarui!", "success");
+    }
+
+    // STAFF MANAGEMENT
+    function getStoredPhysicists() {
+      try {
+        const data = localStorage.getItem(PHYSICISTS_KEY);
+        return data ? JSON.parse(data) : DEFAULT_PHYSICISTS;
+      } catch (e) {
+        return DEFAULT_PHYSICISTS;
+      }
+    }
+
+    function savePhysicistsToStorage(list) {
+      localStorage.setItem(PHYSICISTS_KEY, JSON.stringify(list));
+    }
+
+    function getStoredDoctors() {
+      try {
+        const data = localStorage.getItem(DOCTORS_KEY);
+        return data ? JSON.parse(data) : DEFAULT_DOCTORS;
+      } catch (e) {
+        return DEFAULT_DOCTORS;
+      }
+    }
+
+    function saveDoctorsToStorage(list) {
+      localStorage.setItem(DOCTORS_KEY, JSON.stringify(list));
+    }
+
+    function openStaffModal() {
+      renderStaffTables();
+      document.getElementById('staffModal').classList.remove('hidden');
+    }
+
+    function closeStaffModal() {
+      document.getElementById('staffModal').classList.add('hidden');
+    }
+
+    function renderStaffTables() {
+      const physList = getStoredPhysicists();
+      const physTbody = document.getElementById('physicistTableBody');
+      const physSelect = document.getElementById('selectRepPhysicist');
+
+      if (physTbody) {
+        physTbody.innerHTML = '';
+        physList.forEach(p => {
+          const tr = document.createElement('tr');
+          tr.className = "border-b hover:bg-slate-50";
+          tr.innerHTML = `
+            <td class="p-2 font-bold">${p.nama}</td>
+            <td class="p-2 font-mono text-slate-600">${p.nip || '-'}</td>
+            <td class="p-2 text-center">
+              <button onclick="editPhysicist('${p.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded text-xs mr-1">Edit</button>
+              <button onclick="deletePhysicist('${p.id}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded text-xs">Hapus</button>
+            </td>
+          `;
+          physTbody.appendChild(tr);
+        });
+      }
+
+      if (physSelect) {
+        physSelect.innerHTML = '';
+        physList.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.innerText = p.nama;
+          physSelect.appendChild(opt);
+        });
+        physSelect.onchange = function() {
+          const sel = physList.find(item => item.id === physSelect.value);
+          if (sel) {
+            document.getElementById('lblRepPhysName').innerText = `( ${sel.nama} )`;
+            document.getElementById('lblRepPhysNIP').innerText = sel.nip || 'Fisikawan Medis Klinis Radioterapi';
+          }
+        };
+        if (physList.length > 0) physSelect.onchange();
+      }
+
+      const docList = getStoredDoctors();
+      const docTbody = document.getElementById('doctorTableBody');
+      const docSelect = document.getElementById('selectRepDoctor');
+
+      if (docTbody) {
+        docTbody.innerHTML = '';
+        docList.forEach(d => {
+          const tr = document.createElement('tr');
+          tr.className = "border-b hover:bg-slate-50";
+          tr.innerHTML = `
+            <td class="p-2 font-bold">${d.nama}</td>
+            <td class="p-2 font-mono text-slate-600">${d.nip || '-'}</td>
+            <td class="p-2 text-center">
+              <button onclick="editDoctor('${d.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded text-xs mr-1">Edit</button>
+              <button onclick="deleteDoctor('${d.id}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded text-xs">Hapus</button>
+            </td>
+          `;
+          docTbody.appendChild(tr);
+        });
+      }
+
+      if (docSelect) {
+        docSelect.innerHTML = '';
+        docList.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.id;
+          opt.innerText = d.nama;
+          docSelect.appendChild(opt);
+        });
+        docSelect.onchange = function() {
+          const sel = docList.find(item => item.id === docSelect.value);
+          if (sel) {
+            document.getElementById('lblRepDocName').innerText = `( ${sel.nama} )`;
+            document.getElementById('lblRepDocNIP').innerText = sel.nip || 'Kepala Instalasi Radioterapi';
+          }
+        };
+        if (docList.length > 0) docSelect.onchange();
+      }
+    }
+
+    function savePhysicist(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('editPhysId').value || `phys_${Date.now()}`;
+      const nama = document.getElementById('physName').value.trim();
+      const nip = document.getElementById('physNIP').value.trim();
+
+      let list = getStoredPhysicists();
+      const idx = list.findIndex(p => p.id === id);
+      if (idx >= 0) list[idx] = { id, nama, nip };
+      else list.push({ id, nama, nip });
+
+      savePhysicistsToStorage(list);
+      sendToGoogleSheets('savePhysicists', list);
+      renderStaffTables();
+      document.getElementById('editPhysId').value = '';
+      document.getElementById('physName').value = '';
+      document.getElementById('physNIP').value = '';
+      showToast("Data Fisikawan disimpan!", "success");
+    }
+
+    function editPhysicist(id) {
+      const p = getStoredPhysicists().find(item => item.id === id);
+      if (!p) return;
+      document.getElementById('editPhysId').value = p.id;
+      document.getElementById('physName').value = p.nama;
+      document.getElementById('physNIP').value = p.nip || '';
+    }
+
+    function deletePhysicist(id) {
+      let list = getStoredPhysicists();
+      if (list.length <= 1) {
+        showToast("Minimal harus menyisakan 1 Fisikawan Medis!", "error");
+        return;
+      }
+      showConfirm("Hapus data fisikawan ini?", () => {
+        list = list.filter(item => item.id !== id);
+        savePhysicistsToStorage(list);
+        renderStaffTables();
+        showToast("Fisikawan dihapus.", "info");
+      });
+    }
+
+    function saveDoctor(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('editDocId').value || `doc_${Date.now()}`;
+      const nama = document.getElementById('docName').value.trim();
+      const nip = document.getElementById('docNIP').value.trim();
+
+      let list = getStoredDoctors();
+      const idx = list.findIndex(d => d.id === id);
+      if (idx >= 0) list[idx] = { id, nama, nip };
+      else list.push({ id, nama, nip });
+
+      saveDoctorsToStorage(list);
+      sendToGoogleSheets('saveDoctors', list);
+      renderStaffTables();
+      document.getElementById('editDocId').value = '';
+      document.getElementById('docName').value = '';
+      document.getElementById('docNIP').value = '';
+      showToast("Data Dokter disimpan!", "success");
+    }
+
+    function editDoctor(id) {
+      const d = getStoredDoctors().find(item => item.id === id);
+      if (!d) return;
+      document.getElementById('editDocId').value = d.id;
+      document.getElementById('docName').value = d.nama;
+      document.getElementById('docNIP').value = d.nip || '';
+    }
+
+    function deleteDoctor(id) {
+      let list = getStoredDoctors();
+      if (list.length <= 1) {
+        showToast("Minimal harus menyisakan 1 Dokter!", "error");
+        return;
+      }
+      showConfirm("Hapus data dokter ini?", () => {
+        list = list.filter(item => item.id !== id);
+        saveDoctorsToStorage(list);
+        renderStaffTables();
+        showToast("Dokter dihapus.", "info");
+      });
+    }
+
+    // GOOGLE SHEETS INTEGRATION
+    function getGoogleSheetsUrl() {
+      return localStorage.getItem(GS_URL_KEY) || '';
+    }
+
+    function openGoogleSheetsModal() {
+      document.getElementById('gsAppUrl').value = getGoogleSheetsUrl();
+      document.getElementById('googleSheetsModal').classList.remove('hidden');
+    }
+
+    function closeGoogleSheetsModal() {
+      document.getElementById('googleSheetsModal').classList.add('hidden');
+    }
+
+    function updateGoogleSheetsBadge(isConnected) {
+      const dot = document.getElementById('sheetBadgeDot');
+      const text = document.getElementById('sheetBadgeText');
+      const dbStatus = document.getElementById('sidebarDbStatus');
+      const dbDetail = document.getElementById('sidebarDbDetail');
+
+      if (isConnected) {
+        if (dot) dot.className = "w-2 h-2 rounded-full bg-emerald-400 inline-block";
+        if (text) text.innerText = "Sheets: Online";
+        if (dbStatus) {
+          dbStatus.innerText = "GOOGLE SHEETS";
+          dbStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        }
+        if (dbDetail) dbDetail.innerText = "Tersinkron dengan Cloud";
+      } else {
+        if (dot) dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block";
+        if (text) text.innerText = "Sheets: Offline";
+        if (dbStatus) {
+          dbStatus.innerText = "LOKAL";
+          dbStatus.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+        }
+        if (dbDetail) dbDetail.innerText = "Penyimpanan Browser";
+      }
+    }
+
+    async function sendToGoogleSheets(action, data) {
+      const url = getGoogleSheetsUrl();
+      if (!url) return;
+
+      try {
+        await fetch(url, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: action, data: data })
+        });
+      } catch (e) {
+        console.warn("Gagal mengirim data instan ke Google Sheets:", e);
+      }
+    }
+
+    async function testGoogleSheetsConnection() {
+      const url = document.getElementById('gsAppUrl').value.trim();
+      if (!url) {
+        showToast("Masukkan URL Google Apps Script!", "error");
+        return;
+      }
+
+      showToast("Menghubungkan ke Google Sheets...", "info");
+      try {
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result && result.status === 'success') {
+          localStorage.setItem(GS_URL_KEY, url);
+          updateGoogleSheetsBadge(true);
+          
+          if (result.data) {
+            if (result.data.records) saveRecordsToStorage(result.data.records);
+            if (result.data.machines) saveMachinesToStorage(result.data.machines);
+            if (result.data.detectors) saveDetectorsToStorage(result.data.detectors);
+            if (result.data.beamQuality) saveBQDatasetsToStorage(result.data.beamQuality);
+            if (result.data.hospitalInfo) localStorage.setItem(HOSPITAL_INFO_KEY, JSON.stringify(result.data.hospitalInfo));
+            if (result.data.physicists) savePhysicistsToStorage(result.data.physicists);
+            if (result.data.doctors) saveDoctorsToStorage(result.data.doctors);
+            
+            initMachines();
+            initDetectors();
+            initBeamQualityDatasets();
+            updateSidebarBranding();
+            calculateDose();
+          }
+
+          closeGoogleSheetsModal();
+          showToast("Terhubung & data tersinkronisasi sempurna!", "success");
+        } else {
+          showToast("Koneksi gagal! Periksa deployment Web App.", "error");
+        }
+      } catch (err) {
+        console.error(err);
+        showToast("Gagal menghubungi endpoint Google Sheets.", "error");
+      }
+    }
+
+    function disconnectGoogleSheets() {
+      localStorage.removeItem(GS_URL_KEY);
+      document.getElementById('gsAppUrl').value = '';
+      updateGoogleSheetsBadge(false);
+      closeGoogleSheetsModal();
+      showToast("Koneksi Google Sheets terputus. Mode Lokal Aktif.", "info");
+    }
+
+    // MASTER DATA MACHINE CRUD
+    function getStoredMachines() {
+      try {
+        const data = localStorage.getItem(MACHINE_STORAGE_KEY);
+        return data ? JSON.parse(data) : DEFAULT_MACHINES;
+      } catch (e) {
+        return DEFAULT_MACHINES;
+      }
+    }
+
+    function saveMachinesToStorage(list) {
+      localStorage.setItem(MACHINE_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function initMachines() {
+      const list = getStoredMachines();
+      const select = document.getElementById('namaPesawat');
+      const bqSelect = document.getElementById('bqMachine');
+      const dashSelect = document.getElementById('dashFilterMachine');
+      if (!select) return;
+      
+      const prevVal = select.value;
+      select.innerHTML = '';
+      if (bqSelect) bqSelect.innerHTML = '';
+      if (dashSelect) {
+        dashSelect.innerHTML = '<option value="ALL">-- Semua Pesawat Linac --</option>';
+      }
+
+      list.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.innerText = `${m.name} (${m.vendor || 'Linac'})`;
+        select.appendChild(opt);
+
+        if (bqSelect) {
+          const opt2 = document.createElement('option');
+          opt2.value = m.name;
+          opt2.innerText = m.name;
+          bqSelect.appendChild(opt2);
+        }
+
+        if (dashSelect) {
+          const opt3 = document.createElement('option');
+          opt3.value = m.name;
+          opt3.innerText = m.name;
+          dashSelect.appendChild(opt3);
+        }
+      });
+
+      if (list.some(m => m.name === prevVal)) {
+        select.value = prevVal;
+      } else if (list.length > 0) {
+        select.value = list[0].name;
+      }
+
+      updateEnergyListForSelectedMachine();
+    }
+
+    function updateEnergyListForSelectedMachine() {
+      const machines = getStoredMachines();
+      const selMachineName = document.getElementById('namaPesawat').value;
+      const machineObj = machines.find(m => m.name === selMachineName) || machines[0];
+      
+      const energySelect = document.getElementById('energi');
+      if (!energySelect) return;
+      const prevEnergy = energySelect.value;
+      energySelect.innerHTML = '';
+
+      const allowedEnergies = (machineObj && machineObj.energies && machineObj.energies.length > 0) 
+        ? machineObj.energies 
+        : ["6 MV FFF", "6 MV", "10 MV"];
+
+      allowedEnergies.forEach(eng => {
+        const opt = document.createElement('option');
+        opt.value = eng;
+        opt.innerText = eng;
+        energySelect.appendChild(opt);
+      });
+
+      if (allowedEnergies.includes(prevEnergy)) {
+        energySelect.value = prevEnergy;
+      } else {
+        energySelect.value = allowedEnergies[0];
+      }
+    }
+
+    function openMachineModal() {
+      renderMachineTable();
+      document.getElementById('machineModal').classList.remove('hidden');
+    }
+
+    function closeMachineModal() {
+      document.getElementById('machineModal').classList.add('hidden');
+    }
+
+    function clearMachineForm() {
+      document.getElementById('editMachineId').value = '';
+      document.getElementById('mchName').value = '';
+      document.getElementById('mchVendor').value = '';
+      document.getElementById('mchSN').value = '';
+      document.getElementById('mchEng_6FFF').checked = false;
+      document.getElementById('mchEng_6MV').checked = false;
+      document.getElementById('mchEng_10MV').checked = false;
+      document.getElementById('mchEng_10FFF').checked = false;
+      document.getElementById('mchEng_15MV').checked = false;
+    }
+
+    function renderMachineTable() {
+      const list = getStoredMachines();
+      const tbody = document.getElementById('machineTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      list.forEach(m => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b";
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-blue-900">${m.name}</td>
+          <td class="p-2 text-slate-700">${m.vendor || '-'}</td>
+          <td class="p-2 font-mono text-slate-600">${m.sn || '-'}</td>
+          <td class="p-2 font-mono text-[11px] font-semibold text-emerald-800">${(m.energies || []).join(', ')}</td>
+          <td class="p-2 text-center">
+            <button type="button" onclick="editMachine('${m.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded mr-1">Edit</button>
+            <button type="button" onclick="confirmDeleteMachine('${m.id}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded">Hapus</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function saveMachine(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('editMachineId').value || `mch_${Date.now()}`;
+      const name = document.getElementById('mchName').value.trim();
+      const vendor = document.getElementById('mchVendor').value.trim();
+      const sn = document.getElementById('mchSN').value.trim();
+
+      const energies = [];
+      if (document.getElementById('mchEng_6FFF').checked) energies.push("6 MV FFF");
+      if (document.getElementById('mchEng_6MV').checked) energies.push("6 MV");
+      if (document.getElementById('mchEng_10MV').checked) energies.push("10 MV");
+      if (document.getElementById('mchEng_10FFF').checked) energies.push("10 MV FFF");
+      if (document.getElementById('mchEng_15MV').checked) energies.push("15 MV");
+
+      if (energies.length === 0) {
+        showToast("Pilih minimal 1 energi yang didukung pesawat!", "error");
+        return;
+      }
+
+      let list = getStoredMachines();
+      const idx = list.findIndex(m => m.id === id);
+      const machineData = { id, name, vendor, sn, energies };
+
+      if (idx >= 0) list[idx] = machineData;
+      else list.push(machineData);
+
+      saveMachinesToStorage(list);
+      sendToGoogleSheets('saveMachines', list);
+      initMachines();
+      renderMachineTable();
+      clearMachineForm();
+      calculateDose();
+      showToast("Data pesawat berhasil disimpan!", "success");
+    }
+
+    function editMachine(id) {
+      const list = getStoredMachines();
+      const m = list.find(item => item.id === id);
+      if (!m) return;
+
+      document.getElementById('editMachineId').value = m.id;
+      document.getElementById('mchName').value = m.name;
+      document.getElementById('mchVendor').value = m.vendor || '';
+      document.getElementById('mchSN').value = m.sn || '';
+
+      const engs = m.energies || [];
+      document.getElementById('mchEng_6FFF').checked = engs.includes("6 MV FFF");
+      document.getElementById('mchEng_6MV').checked = engs.includes("6 MV");
+      document.getElementById('mchEng_10MV').checked = engs.includes("10 MV");
+      document.getElementById('mchEng_10FFF').checked = engs.includes("10 MV FFF");
+      document.getElementById('mchEng_15MV').checked = engs.includes("15 MV");
+    }
+
+    function confirmDeleteMachine(id) {
+      let list = getStoredMachines();
+      if (list.length <= 1) {
+        showToast("Minimal harus menyisakan 1 pesawat!", "error");
+        return;
+      }
+      showConfirm("Hapus pesawat ini dari master data?", () => {
+        list = list.filter(m => m.id !== id);
+        saveMachinesToStorage(list);
+        initMachines();
+        renderMachineTable();
+        calculateDose();
+        showToast("Pesawat berhasil dihapus.", "info");
+      });
+    }
+
+    // MASTER DETECTOR CRUD
+    function getStoredDetectors() {
+      try {
+        const data = localStorage.getItem(DETECTOR_STORAGE_KEY);
+        return data ? JSON.parse(data) : DEFAULT_DETECTORS;
+      } catch (e) {
+        return DEFAULT_DETECTORS;
+      }
+    }
+
+    function saveDetectorsToStorage(list) {
+      localStorage.setItem(DETECTOR_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function initDetectors() {
+      const list = getStoredDetectors();
+      const select = document.getElementById('detektor');
+      if (!select) return;
+
+      const prevVal = select.value;
+      select.innerHTML = '';
+      
+      list.forEach(det => {
+        const opt = document.createElement('option');
+        opt.value = det.id;
+        opt.innerText = `${det.name} (${det.sn || 'No S/N'})`;
+        select.appendChild(opt);
+      });
+
+      if (list.some(d => d.id === prevVal)) {
+        select.value = prevVal;
+      } else if (list.length > 0) {
+        select.value = list[0].id;
+      }
+      syncSelectedDetector();
+    }
+
+    function syncSelectedDetector() {
+      const list = getStoredDetectors();
+      const selEl = document.getElementById('detektor');
+      if (!selEl) return;
+      const selId = selEl.value;
+      
+      const det = list.find(d => d.id === selId) || list[0];
+      if (det) {
+        activeCalibration.NDW = parseFloat(det.NDW) || 0.05000;
+        activeCalibration.chamberName = det.name;
+        
+        const tpr = parseFloat(document.getElementById('inputTPR2010').value) || 0.683;
+        const interpolatedKQ = interpolateKQFromTPR(det.name, tpr);
+        activeCalibration.kQ = interpolatedKQ;
+      }
+    }
+
+    function onChamberChange() {
+      syncSelectedDetector();
+      calculateDose();
+    }
+
+    function openDetectorModal() {
+      renderDetectorTable();
+      document.getElementById('detectorModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeDetectorModal() {
+      document.getElementById('detectorModal').classList.add('hidden');
+    }
+
+    function clearDetectorForm() {
+      document.getElementById('editDetectorId').value = '';
+      document.getElementById('detName').value = '';
+      document.getElementById('detSN').value = '';
+      document.getElementById('detNDW').value = '';
+      document.getElementById('detKQ_6FFF').value = '0.998';
+      document.getElementById('detKQ_6MV').value = '0.992';
+      document.getElementById('detKQ_10MV').value = '0.984';
+      document.getElementById('detKQ_10FFF').value = '0.987';
+      document.getElementById('detKQ_15MV').value = '0.976';
+    }
+
+    function renderDetectorTable() {
+      const list = getStoredDetectors();
+      const tbody = document.getElementById('detectorTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      list.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b";
+        const ndwVal = (parseFloat(d.NDW) || 0).toFixed(5);
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-slate-800">${d.name || '-'}</td>
+          <td class="p-2 text-slate-600">${d.sn || '-'}</td>
+          <td class="p-2 font-mono font-bold text-blue-900">${ndwVal}</td>
+          <td class="p-2 font-mono text-[11px]">
+            6FFF: ${d.kQ ? (d.kQ["6 MV FFF"] || '-') : '-'} | 
+            6MV: ${d.kQ ? (d.kQ["6 MV"] || '-') : '-'} | 
+            10MV: ${d.kQ ? (d.kQ["10 MV"] || '-') : '-'}
+          </td>
+          <td class="p-2 text-center">
+            <button type="button" onclick="editDetector('${d.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded mr-1">Edit</button>
+            <button type="button" onclick="confirmDeleteDetector('${d.id}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded">Hapus</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      renderKaTeX();
+    }
+
+    function saveDetector(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('editDetectorId').value || `det_${Date.now()}`;
+      const name = document.getElementById('detName').value.trim();
+      const sn = document.getElementById('detSN').value.trim();
+      const NDW = parseFloat(document.getElementById('detNDW').value) || 0.05000;
+
+      const kQ = {
+        "6 MV FFF": parseFloat(document.getElementById('detKQ_6FFF').value) || 0.998,
+        "6 MV": parseFloat(document.getElementById('detKQ_6MV').value) || 0.992,
+        "10 MV": parseFloat(document.getElementById('detKQ_10MV').value) || 0.984,
+        "10 MV FFF": parseFloat(document.getElementById('detKQ_10FFF').value) || 0.987,
+        "15 MV": parseFloat(document.getElementById('detKQ_15MV').value) || 0.976
+      };
+
+      let list = getStoredDetectors();
+      const idx = list.findIndex(d => d.id === id);
+      if (idx >= 0) list[idx] = { id, name, sn, NDW, kQ };
+      else list.push({ id, name, sn, NDW, kQ });
+
+      saveDetectorsToStorage(list);
+      sendToGoogleSheets('saveDetectors', list);
+      initDetectors();
+      renderDetectorTable();
+      clearDetectorForm();
+      calculateDose();
+      showToast("Data detektor berhasil disimpan!", "success");
+    }
+
+    function editDetector(id) {
+      const list = getStoredDetectors();
+      const d = list.find(item => item.id === id);
+      if (!d) return;
+
+      document.getElementById('editDetectorId').value = d.id;
+      document.getElementById('detName').value = d.name;
+      document.getElementById('detSN').value = d.sn || '';
+      document.getElementById('detNDW').value = d.NDW;
+      
+      if (d.kQ) {
+        document.getElementById('detKQ_6FFF').value = d.kQ["6 MV FFF"] || 0.998;
+        document.getElementById('detKQ_6MV').value = d.kQ["6 MV"] || 0.992;
+        document.getElementById('detKQ_10MV').value = d.kQ["10 MV"] || 0.984;
+        document.getElementById('detKQ_10FFF').value = d.kQ["10 MV FFF"] || 0.987;
+        document.getElementById('detKQ_15MV').value = d.kQ["15 MV"] || 0.976;
+      }
+    }
+
+    function confirmDeleteDetector(id) {
+      let list = getStoredDetectors();
+      if (list.length <= 1) {
+        showToast("Minimal harus menyisakan 1 detektor!", "error");
+        return;
+      }
+      showConfirm("Hapus detektor ini?", () => {
+        list = list.filter(d => d.id !== id);
+        saveDetectorsToStorage(list);
+        initDetectors();
+        renderDetectorTable();
+        calculateDose();
+        showToast("Detektor dihapus.", "info");
+      });
+    }
+
+    // BEAM QUALITY CRUD
+    function getStoredBQDatasets() {
+      try {
+        const data = localStorage.getItem(BQ_STORAGE_KEY);
+        return data ? JSON.parse(data) : DEFAULT_BQ_DATASETS;
+      } catch (e) {
+        return DEFAULT_BQ_DATASETS;
+      }
+    }
+
+    function saveBQDatasetsToStorage(list) {
+      localStorage.setItem(BQ_STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function populateBQMachineDropdown() {
+      const machines = getStoredMachines();
+      const bqSelect = document.getElementById('bqMachine');
+      if (!bqSelect) return;
+      const currentVal = bqSelect.value;
+      bqSelect.innerHTML = '';
+
+      machines.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.name;
+        opt.innerText = m.name;
+        bqSelect.appendChild(opt);
+      });
+
+      if (machines.some(m => m.name === currentVal)) {
+        bqSelect.value = currentVal;
+      } else if (machines.length > 0) {
+        bqSelect.value = machines[0].name;
+      }
+    }
+
+    function openBeamQualityModal() {
+      populateBQMachineDropdown();
+      onBQMachineChange();
+      renderBQTable();
+      document.getElementById('beamQualityModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeBeamQualityModal() {
+      document.getElementById('beamQualityModal').classList.add('hidden');
+    }
+
+    function renderBQTable() {
+      const list = getStoredBQDatasets();
+      const tbody = document.getElementById('bqTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      list.forEach(b => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b";
+        
+        const d10Val = (parseFloat(b.d10) || 0).toFixed(3);
+        const d20Val = (parseFloat(b.d20) || 0).toFixed(3);
+        const tprVal = (parseFloat(b.tpr2010) || 0).toFixed(3);
+        const pddVal = (parseFloat(b.pddRef) || 0).toFixed(3);
+
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-slate-800">${b.date}</td>
+          <td class="p-2 text-slate-700 font-semibold">${b.label}</td>
+          <td class="p-2">${b.machine} (${b.energy})</td>
+          <td class="p-2 font-mono font-bold">${d10Val}</td>
+          <td class="p-2 font-mono font-bold">${d20Val}</td>
+          <td class="p-2 font-mono font-bold text-blue-900">${tprVal}</td>
+          <td class="p-2 font-mono font-bold text-emerald-800">${pddVal}%</td>
+          <td class="p-2 text-center">
+            ${b.isDefault ? '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded text-[10px] font-bold">DEFAULT</span>' : '-'}
+          </td>
+          <td class="p-2 text-center">
+            <button onclick="editBQ('${b.id}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded mr-1">Edit</button>
+            <button onclick="confirmDeleteBQ('${b.id}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded">Hapus</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      renderKaTeX();
+    }
+
+    function onBQMachineChange() {
+      const bqMachineEl = document.getElementById('bqMachine');
+      if (!bqMachineEl) return;
+      
+      const mchName = bqMachineEl.value;
+      const machines = getStoredMachines();
+      const m = machines.find(item => item.name === mchName);
+      const bqEngSelect = document.getElementById('bqEnergy');
+      if (!bqEngSelect) return;
+      bqEngSelect.innerHTML = '';
+
+      const engs = (m && m.energies && m.energies.length > 0) ? m.energies : ["6 MV FFF", "6 MV"];
+      engs.forEach(e => {
+        const opt = document.createElement('option');
+        opt.value = e;
+        opt.innerText = e;
+        bqEngSelect.appendChild(opt);
+      });
+    }
+
+    function initBeamQualityDatasets() {
+      const list = getStoredBQDatasets();
+      const machine = document.getElementById('namaPesawat').value;
+      const energy = document.getElementById('energi').value;
+
+      const filtered = list.filter(item => item.machine === machine && item.energy === energy);
+      const select = document.getElementById('selectBQData');
+      if (!select) return;
+      select.innerHTML = '';
+
+      if (filtered.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = "manual";
+        opt.innerText = "Standar Reference PDD (Default)";
+        select.appendChild(opt);
+      } else {
+        filtered.forEach(bq => {
+          const opt = document.createElement('option');
+          opt.value = bq.id;
+          opt.innerText = `${bq.date} - ${bq.label} ${bq.isDefault ? '(Default)' : ''}`;
+          select.appendChild(opt);
+        });
+
+        const defaultItem = filtered.find(b => b.isDefault) || filtered[0];
+        select.value = defaultItem.id;
+      }
+
+      syncSelectedBeamQuality();
+    }
+
+    function syncSelectedBeamQuality() {
+      const list = getStoredBQDatasets();
+      const selId = document.getElementById('selectBQData').value;
+      const bq = list.find(b => b.id === selId);
+
+      if (bq) {
+        document.getElementById('inputD10').value = bq.d10;
+        document.getElementById('inputD20').value = bq.d20;
+        document.getElementById('inputTPR2010').value = bq.tpr2010;
+        document.getElementById('lblPDDRef').innerText = `${parseFloat(bq.pddRef).toFixed(3)} %`;
+        activeCalibration.pdd = bq.pddRef;
+        document.getElementById('lblDefaultBadge').classList.toggle('hidden', !bq.isDefault);
+      } else {
+        document.getElementById('inputD10').value = "65.100";
+        document.getElementById('inputD20').value = "38.200";
+        document.getElementById('inputTPR2010').value = calcTPR2010FromD10D20(65.1, 38.2);
+        document.getElementById('lblPDDRef').innerText = "65.100 %";
+        activeCalibration.pdd = 65.100;
+        document.getElementById('lblDefaultBadge').classList.add('hidden');
+      }
+    }
+
+    function autoCalcTPRInModal() {
+      const d10Val = document.getElementById('bqD10').value;
+      const d10 = parseFloat(d10Val) || 0;
+      const d20 = parseFloat(document.getElementById('bqD20').value) || 0;
+      
+      if (d10Val !== '') {
+        document.getElementById('bqPDD').value = d10 > 0 ? d10.toFixed(3) : d10Val;
+      } else {
+        document.getElementById('bqPDD').value = '';
+      }
+
+      if (d10 > 0 && d20 > 0) {
+        const tpr = calcTPR2010FromD10D20(d10, d20);
+        document.getElementById('bqTPR').value = tpr;
+      }
+    }
+
+    function onBeamQualityChange() {
+      syncSelectedBeamQuality();
+      calculateDose();
+    }
+
+    function clearBQForm() {
+      document.getElementById('editBQId').value = '';
+      document.getElementById('bqDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('bqLabel').value = '';
+      document.getElementById('bqD10').value = '';
+      document.getElementById('bqD20').value = '';
+      document.getElementById('bqTPR').value = '';
+      document.getElementById('bqPDD').value = '';
+      document.getElementById('bqIsDefault').checked = false;
+    }
+
+    function saveBQDataset(e) {
+      if (e) e.preventDefault();
+      const id = document.getElementById('editBQId').value || `bq_${Date.now()}`;
+      const date = document.getElementById('bqDate').value;
+      const label = document.getElementById('bqLabel').value.trim();
+      const machine = document.getElementById('bqMachine').value;
+      const energy = document.getElementById('bqEnergy').value;
+      const d10 = parseFloat(document.getElementById('bqD10').value) || 65.1;
+      const d20 = parseFloat(document.getElementById('bqD20').value) || 38.2;
+      
+      let tpr2010 = parseFloat(document.getElementById('bqTPR').value);
+      if (!tpr2010 || isNaN(tpr2010)) {
+        tpr2010 = calcTPR2010FromD10D20(d10, d20);
+      }
+
+      const pddRef = parseFloat(document.getElementById('bqPDD').value) || d10;
+      const isDefault = document.getElementById('bqIsDefault').checked;
+
+      let list = getStoredBQDatasets();
+
+      if (isDefault) {
+        list.forEach(item => {
+          if (item.machine === machine && item.energy === energy) {
+            item.isDefault = false;
+          }
+        });
+      }
+
+      const idx = list.findIndex(b => b.id === id);
+      const recordData = { id, date, label, machine, energy, d10, d20, tpr2010, pddRef, isDefault };
+
+      if (idx >= 0) list[idx] = recordData;
+      else list.push(recordData);
+
+      saveBQDatasetsToStorage(list);
+      sendToGoogleSheets('saveBeamQuality', list);
+      initBeamQualityDatasets();
+      renderBQTable();
+      clearBQForm();
+      calculateDose();
+      showToast("Dataset Beam Quality disimpan!", "success");
+    }
+
+    function editBQ(id) {
+      const list = getStoredBQDatasets();
+      const b = list.find(item => item.id === id);
+      if (!b) return;
+
+      document.getElementById('editBQId').value = b.id;
+      document.getElementById('bqDate').value = b.date;
+      document.getElementById('bqLabel').value = b.label;
+      document.getElementById('bqMachine').value = b.machine;
+      onBQMachineChange();
+      document.getElementById('bqEnergy').value = b.energy;
+      document.getElementById('bqD10').value = b.d10;
+      document.getElementById('bqD20').value = b.d20;
+      document.getElementById('bqTPR').value = b.tpr2010;
+      document.getElementById('bqPDD').value = (parseFloat(b.pddRef || b.d10) || 0).toFixed(3);
+      document.getElementById('bqIsDefault').checked = !!b.isDefault;
+    }
+
+    function confirmDeleteBQ(id) {
+      showConfirm("Hapus dataset ini?", () => {
+        let list = getStoredBQDatasets();
+        list = list.filter(b => b.id !== id);
+        saveBQDatasetsToStorage(list);
+        initBeamQualityDatasets();
+        renderBQTable();
+        calculateDose();
+        showToast("Dataset dihapus.", "info");
+      });
+    }
+
+    // KQ TABULAR INTERPOLATION ENGINE
+    function calcTPR2010FromD10D20(d10, d20) {
+      if (!d10 || !d20 || d10 <= 0) return 0.683;
+      const tpr = 1.2661 * (d20 / d10) - 0.0595;
+      return parseFloat(Math.max(0, tpr).toFixed(3));
+    }
+
+    function autoCalcTPRMainForm() {
+      const d10 = parseFloat(document.getElementById('inputD10').value) || 0;
+      const d20 = parseFloat(document.getElementById('inputD20').value) || 0;
+      if (d10 > 0 && d20 > 0) {
+        const tpr = calcTPR2010FromD10D20(d10, d20);
+        document.getElementById('inputTPR2010').value = tpr;
+      }
+    }
+
+    function getStoredKQTables() {
+      try {
+        const data = localStorage.getItem(KQ_TABLE_STORAGE_KEY);
+        return data ? JSON.parse(data) : DEFAULT_KQ_TABLES;
+      } catch (e) {
+        return DEFAULT_KQ_TABLES;
+      }
+    }
+
+    function saveKQTablesToStorage(tables) {
+      localStorage.setItem(KQ_TABLE_STORAGE_KEY, JSON.stringify(tables));
+    }
+
+    function interpolateKQFromTPR(chamberName, tprVal) {
+      if (!tprVal || tprVal <= 0) return 0.9980;
+      
+      const tables = getStoredKQTables();
+      let points = tables[chamberName];
+      if (!points || points.length === 0) {
+        const firstKey = Object.keys(tables)[0];
+        points = tables[firstKey] || DEFAULT_KQ_TABLES["FC65-G/IC70 Farmer"];
+      }
+
+      const sorted = [...points].sort((a, b) => a.tpr - b.tpr);
+      if (tprVal <= sorted[0].tpr) return sorted[0].kq;
+      if (tprVal >= sorted[sorted.length - 1].tpr) return sorted[sorted.length - 1].kq;
+
+      for (let i = 0; i < sorted.length - 1; i++) {
+        const p1 = sorted[i];
+        const p2 = sorted[i + 1];
+
+        if (tprVal >= p1.tpr && tprVal <= p2.tpr) {
+          const fraction = (tprVal - p1.tpr) / (p2.tpr - p1.tpr);
+          const interpolated = p1.kq + fraction * (p2.kq - p1.kq);
+          return parseFloat(interpolated.toFixed(4));
+        }
+      }
+
+      return sorted[0].kq;
+    }
+
+    function openKQModal() {
+      populateKQChamberSelect();
+      renderKQTable();
+      testKQInterpolation();
+      document.getElementById('kqModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeKQModal() {
+      document.getElementById('kqModal').classList.add('hidden');
+    }
+
+    function populateKQChamberSelect() {
+      const detectors = getStoredDetectors();
+      const select = document.getElementById('selectKQChamber');
+      if (!select) return;
+      const prev = select.value;
+      select.innerHTML = '';
+
+      detectors.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d.name;
+        opt.innerText = d.name;
+        select.appendChild(opt);
+      });
+
+      if (Array.from(select.options).some(o => o.value === prev)) {
+        select.value = prev;
+      } else {
+        const activeDet = getActiveDetectorObject();
+        if (activeDet) select.value = activeDet.name;
+      }
+    }
+
+    function getActiveDetectorObject() {
+      const list = getStoredDetectors();
+      const selId = document.getElementById('detektor').value;
+      return list.find(d => d.id === selId) || list[0];
+    }
+
+    function renderKQTable() {
+      const chamberName = document.getElementById('selectKQChamber').value;
+      const tables = getStoredKQTables();
+      const points = (tables[chamberName] || []).sort((a, b) => a.tpr - b.tpr);
+      const tbody = document.getElementById('kqTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (points.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Belum ada titik data kQ untuk chamber ini.</td></tr>`;
+        return;
+      }
+
+      points.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 border-b";
+        tr.innerHTML = `
+          <td class="p-2 font-bold">${idx + 1}</td>
+          <td class="p-2 font-mono font-bold text-blue-900">${p.tpr.toFixed(3)}</td>
+          <td class="p-2 font-mono font-black text-rose-800 text-sm">${p.kq.toFixed(4)}</td>
+          <td class="p-2 text-slate-500 font-sans">IAEA TRS-398 Table 6.III</td>
+          <td class="p-2 text-center">
+            <button type="button" onclick="editKQPoint(${idx})" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-0.5 rounded text-xs mr-1">Edit</button>
+            <button type="button" onclick="confirmDeleteKQPoint(${idx})" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-0.5 rounded text-xs">Hapus</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      testKQInterpolation();
+      renderKaTeX();
+    }
+
+    function saveKQPoint(e) {
+      if (e) e.preventDefault();
+      const chamberName = document.getElementById('selectKQChamber').value;
+      const tpr = parseFloat(document.getElementById('kqInputTPR').value);
+      const kq = parseFloat(document.getElementById('kqInputVal').value);
+      const editIdx = parseInt(document.getElementById('editKQPointIndex').value);
+
+      if (isNaN(tpr) || isNaN(kq)) {
+        showToast("Masukkan nilai TPR20,10 dan kQ yang valid!", "error");
+        return;
+      }
+
+      let tables = getStoredKQTables();
+      if (!tables[chamberName]) tables[chamberName] = [];
+
+      if (editIdx >= 0 && editIdx < tables[chamberName].length) {
+        tables[chamberName][editIdx] = { tpr, kq };
+      } else {
+        const dupIdx = tables[chamberName].findIndex(p => Math.abs(p.tpr - tpr) < 0.0001);
+        if (dupIdx >= 0) tables[chamberName][dupIdx] = { tpr, kq };
+        else tables[chamberName].push({ tpr, kq });
+      }
+
+      tables[chamberName].sort((a, b) => a.tpr - b.tpr);
+      saveKQTablesToStorage(tables);
+      renderKQTable();
+      clearKQPointForm();
+      calculateDose();
+      showToast("Titik data kQ TRS-398 disimpan!", "success");
+    }
+
+    function editKQPoint(idx) {
+      const chamberName = document.getElementById('selectKQChamber').value;
+      const tables = getStoredKQTables();
+      const point = tables[chamberName]?.[idx];
+      if (!point) return;
+
+      document.getElementById('editKQPointIndex').value = idx;
+      document.getElementById('kqInputTPR').value = point.tpr;
+      document.getElementById('kqInputVal').value = point.kq;
+    }
+
+    function confirmDeleteKQPoint(idx) {
+      const chamberName = document.getElementById('selectKQChamber').value;
+      let tables = getStoredKQTables();
+      if (!tables[chamberName] || tables[chamberName].length <= 2) {
+        showToast("Minimal harus menyisakan 2 titik data untuk interpolasi!", "error");
+        return;
+      }
+
+      showConfirm("Hapus titik data interpolasi kQ ini?", () => {
+        tables[chamberName].splice(idx, 1);
+        saveKQTablesToStorage(tables);
+        renderKQTable();
+        calculateDose();
+        showToast("Titik data kQ dihapus.", "info");
+      });
+    }
+
+    function clearKQPointForm() {
+      document.getElementById('editKQPointIndex').value = "-1";
+      document.getElementById('kqInputTPR').value = "";
+      document.getElementById('kqInputVal').value = "";
+    }
+
+    function testKQInterpolation() {
+      const chamberName = document.getElementById('selectKQChamber').value;
+      const testTPR = parseFloat(document.getElementById('testTPRInput').value) || 0.665;
+      const res = interpolateKQFromTPR(chamberName, testTPR);
+      document.getElementById('testKQResult').innerText = res.toFixed(4);
+    }
+
+    function confirmResetKQTable() {
+      showConfirm("Kembalikan seluruh tabel kQ ke acuan standar IAEA TRS-398?", () => {
+        saveKQTablesToStorage(DEFAULT_KQ_TABLES);
+        renderKQTable();
+        calculateDose();
+        showToast("Tabel kQ di-reset ke standar IAEA TRS-398.", "success");
+      });
+    }
+
+    // TRS-398 CORE DOSIMETRY FORMULAE
+    function getKsCoefficients(vRatio) {
+      if (Math.abs(vRatio - 4.0) < 0.05) {
+        return { a0: 1.022, a1: -0.363, a2: 0.341, label: "Tabel 4.VII (V1/V2 = 4.0)" };
+      } else if (Math.abs(vRatio - 3.0) < 0.05) {
+        return { a0: 1.198, a1: -0.875, a2: 0.677, label: "Tabel 4.VII (V1/V2 = 3.0)" };
+      } else if (Math.abs(vRatio - 2.0) < 0.05) {
+        return { a0: 2.337, a1: -3.636, a2: 2.299, label: "Tabel 4.VII (V1/V2 = 2.0)" };
+      } else if (vRatio > 2.0 && vRatio < 4.0) {
+        if (vRatio < 3.0) {
+          const f = (vRatio - 2.0) / (3.0 - 2.0);
+          return {
+            a0: 2.337 + f * (1.198 - 2.337),
+            a1: -3.636 + f * (-0.875 - -3.636),
+            a2: 2.299 + f * (0.677 - 2.299),
+            label: `Interpolasi Tabel 4.VII (V1/V2 = ${vRatio.toFixed(2)})`
+          };
+        } else {
+          const f = (vRatio - 3.0) / (4.0 - 3.0);
+          return {
+            a0: 1.198 + f * (1.022 - 1.198),
+            a1: -0.875 + f * (-0.363 - -0.875),
+            a2: 0.677 + f * (0.341 - 0.677),
+            label: `Interpolasi Tabel 4.VII (V1/V2 = ${vRatio.toFixed(2)})`
+          };
+        }
+      } else {
+        return { a0: 1.022, a1: -0.363, a2: 0.341, label: "Default Tabel 4.VII (V1/V2 = 4.0)" };
+      }
+    }
+
+    function calculateKsPulsed(meanM1, meanM2, V1, V2) {
+      if (meanM1 <= 0 || meanM2 <= 0 || V1 <= 0 || V2 <= 0) {
+        return { ks: 1.0000, a0: 1.022, a1: -0.363, a2: 0.341, label: "Default" };
+      }
+      const vRatio = V1 / V2;
+      const mRatio = meanM1 / meanM2;
+      const coeff = getKsCoefficients(vRatio);
+      
+      const ksVal = coeff.a0 + coeff.a1 * mRatio + coeff.a2 * Math.pow(mRatio, 2);
+      const safeKs = (isNaN(ksVal) || ksVal < 1.0 || ksVal > 1.25) ? 1.0000 : parseFloat(ksVal.toFixed(4));
+      
+      return {
+        ks: safeKs,
+        ...coeff,
+        mRatio: parseFloat(mRatio.toFixed(4))
+      };
+    }
+
+    function calculateDose() {
+      const P = parseFloat(document.getElementById('inputP').value) || 0;
+      const T = parseFloat(document.getElementById('inputT').value) || 0;
+      const MU = parseFloat(document.getElementById('selectMU').value) || 200;
+      const V1 = parseFloat(document.getElementById('selectV1').value) || 400;
+      const V2 = parseFloat(document.getElementById('selectV2').value) || 100;
+
+      const m1_inputs = [
+        document.getElementById('m1_1').value.trim(),
+        document.getElementById('m1_2').value.trim(),
+        document.getElementById('m1_3').value.trim()
+      ];
+      let sumM1 = 0, countM1 = 0;
+      m1_inputs.forEach(v => {
+        if (v !== '' && !isNaN(parseFloat(v))) {
+          sumM1 += parseFloat(v);
+          countM1++;
+        }
+      });
+      const meanM1 = countM1 > 0 ? sumM1 / countM1 : 0;
+
+      const mneg_inputs = [
+        document.getElementById('mneg_1').value.trim(),
+        document.getElementById('mneg_2').value.trim(),
+        document.getElementById('mneg_3').value.trim()
+      ];
+      let sumMneg = 0, countMneg = 0;
+      mneg_inputs.forEach(v => {
+        if (v !== '' && !isNaN(parseFloat(v))) {
+          sumMneg += parseFloat(v);
+          countMneg++;
+        }
+      });
+      const meanMneg = countMneg > 0 ? sumMneg / countMneg : 0;
+
+      const m2_inputs = [
+        document.getElementById('m2_1').value.trim(),
+        document.getElementById('m2_2').value.trim(),
+        document.getElementById('m2_3').value.trim()
+      ];
+      let sumM2 = 0, countM2 = 0;
+      m2_inputs.forEach(v => {
+        if (v !== '' && !isNaN(parseFloat(v))) {
+          sumM2 += parseFloat(v);
+          countM2++;
+        }
+      });
+      const meanM2 = countM2 > 0 ? sumM2 / countM2 : 0;
+
+      document.getElementById('meanM1').innerText = countM1 > 0 ? meanM1.toFixed(2) : '-';
+      document.getElementById('meanMneg').innerText = countMneg > 0 ? meanMneg.toFixed(2) : '-';
+      document.getElementById('meanM2').innerText = countM2 > 0 ? meanM2.toFixed(2) : '-';
+
+      if (P <= 0 || T <= 0 || meanM1 <= 0) {
+        document.getElementById('outDzref').value = '-';
+        document.getElementById('outDzmax').value = '-';
+        document.getElementById('outDeviasi').value = '-';
+        const ketEl = document.getElementById('outKeterangan');
+        ketEl.innerText = "SIAP UKUR";
+        ketEl.className = "w-32 bg-slate-200 text-slate-700 border border-slate-400 rounded px-2 py-1 text-center font-black text-xs sm:text-sm tracking-wide uppercase";
+        return;
+      }
+
+      const T0 = activeCalibration.T0 || 20.0;
+      const P0 = activeCalibration.P0 || 101.325;
+      const kTP = ((273.2 + T) / (273.2 + T0)) * (P0 / P);
+
+      let kpol = 1.000;
+      if (meanM1 > 0 && meanMneg > 0) {
+        kpol = (Math.abs(meanM1) + Math.abs(meanMneg)) / (2 * Math.abs(meanM1));
+      }
+
+      const ksObj = calculateKsPulsed(meanM1, meanM2, V1, V2);
+      const ks = ksObj.ks;
+
+      const kelec = 1.000;
+      const MQ = meanM1 * kTP * kpol * ks * kelec;
+
+      const tpr2010 = parseFloat(document.getElementById('inputTPR2010').value) || 0.683;
+      const activeDet = getActiveDetectorObject();
+      const interpolatedKQ = interpolateKQFromTPR(activeDet ? activeDet.name : 'FC65-G/IC70 Farmer', tpr2010);
+      
+      activeCalibration.kQ = interpolatedKQ;
+      const lblKQ = document.getElementById('lblKQInterpolated');
+      if (lblKQ) lblKQ.innerText = interpolatedKQ.toFixed(4);
+
+      const NDW = activeCalibration.NDW || 0.05000;
+      const kQ = activeCalibration.kQ;
+      const Dzref = MQ * NDW * kQ;
+
+      const pddFraction = (activeCalibration.pdd || 65.10) / 100.0;
+      const Dzmax = Dzref / pddFraction;
+
+      const targetDose = (activeCalibration.targetDoseRate / 100.0) * MU;
+      const deviasi = ((Dzmax - targetDose) / targetDose) * 100;
+
+      let status = "OK";
+      let statusClass = "bg-result-green text-emerald-900 border-emerald-500";
+      
+      const absDev = Math.abs(deviasi);
+      if (absDev <= 1.0) {
+        status = "OK";
+        statusClass = "bg-emerald-200 text-emerald-950 border-emerald-500";
+      } else if (absDev <= 2.0) {
+        status = "TOLERANSI";
+        statusClass = "bg-lime-200 text-lime-950 border-lime-500";
+      } else {
+        status = "ADJUST";
+        statusClass = "bg-amber-200 text-amber-950 border-amber-600";
+      }
+
+      document.getElementById('outDzref').value = Dzref.toFixed(3);
+      document.getElementById('unitDzref').innerText = `Gy/${MU}MU`;
+
+      document.getElementById('outDzmax').value = Dzmax.toFixed(3);
+      document.getElementById('unitDzmax').innerText = `Gy/${MU}MU`;
+
+      const sign = deviasi > 0 ? '+' : '';
+      document.getElementById('outDeviasi').value = `${sign}${deviasi.toFixed(2)}`;
+
+      const ketEl = document.getElementById('outKeterangan');
+      ketEl.innerText = status;
+      ketEl.className = `w-32 rounded px-2 py-1 text-center font-black text-xs sm:text-sm tracking-wide uppercase border ${statusClass}`;
+
+      calculatedDetails = {
+        P, T, T0, P0, MU, V1, V2,
+        meanM1, meanMneg, meanM2,
+        kTP, kpol, ks, ksObj, MQ, NDW, kQ,
+        pdd: activeCalibration.pdd,
+        Dzref, Dzmax, targetDose, deviasi, status
+      };
+
+      updateDetailsModalContent();
+    }
+
+    function updateDetailsModalContent() {
+      if (!calculatedDetails.kTP) return;
+      document.getElementById('detailKTP').innerText = calculatedDetails.kTP.toFixed(4);
+      document.getElementById('detailKpol').innerText = calculatedDetails.kpol.toFixed(4);
+      document.getElementById('detailKs').innerText = calculatedDetails.ks.toFixed(4);
+      
+      if (calculatedDetails.ksObj) {
+        const ksInfo = calculatedDetails.ksObj;
+        document.getElementById('detailKsCoeff').innerText = 
+          `${ksInfo.label} | a0 = ${ksInfo.a0.toFixed(3)}, a1 = ${ksInfo.a1.toFixed(3)}, a2 = ${ksInfo.a2.toFixed(3)} | (M1/M2 = ${ksInfo.mRatio})`;
+      }
+
+      document.getElementById('detailMQ').innerText = `${calculatedDetails.MQ.toFixed(3)} nC`;
+      document.getElementById('detailNDW').innerText = `${calculatedDetails.NDW.toFixed(5)} Gy/nC`;
+      document.getElementById('detailKQ').innerText = calculatedDetails.kQ.toFixed(4);
+      document.getElementById('detailPDD').innerText = `${calculatedDetails.pdd.toFixed(2)} %`;
+      document.getElementById('detailTargetDose').innerText = `${calculatedDetails.targetDose.toFixed(4)} Gy`;
+    }
+
+    // RECORD STORAGE & HISTORY
+    function getStoredRecords() {
+      try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveRecordsToStorage(records) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    function generateAutoRecordId() {
+      const mchName = (document.getElementById('namaPesawat') ? document.getElementById('namaPesawat').value : '') || '';
+      let prefix = 'QA';
+      
+      if (mchName.toLowerCase().includes('halcyon')) prefix = 'HC';
+      else if (mchName.toLowerCase().includes('vitalbeam')) prefix = 'VB';
+      else if (mchName.toLowerCase().includes('truebeam')) prefix = 'TB';
+      else if (mchName.toLowerCase().includes('clinac')) prefix = 'IX';
+      else if (mchName.toLowerCase().includes('versa') || mchName.toLowerCase().includes('elekta')) prefix = 'VHD';
+      else prefix = mchName.replace(/[^a-zA-Z]/g, '').substring(0, 2).toUpperCase() || 'QA';
+
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const dateStr = `${yyyy}${mm}${dd}`;
+
+      const records = getStoredRecords();
+      const todayMatches = records.filter(r => r.idRecord && r.idRecord.startsWith(`${prefix}-${dateStr}-`));
+      const nextIndex = todayMatches.length + 1;
+
+      return `${prefix}-${dateStr}-${nextIndex}`;
+    }
+
+    function collectCurrentFormData() {
+      return {
+        idRecord: document.getElementById('idRecord').value.trim() || generateAutoRecordId(),
+        tanggal: document.getElementById('displayTanggal').innerText,
+        namaPesawat: document.getElementById('namaPesawat').value,
+        energi: document.getElementById('energi').value,
+        detektorId: document.getElementById('detektor').value,
+        bqDatasetId: document.getElementById('selectBQData').value,
+        d10: parseFloat(document.getElementById('inputD10').value) || 0,
+        d20: parseFloat(document.getElementById('inputD20').value) || 0,
+        tpr2010: parseFloat(document.getElementById('inputTPR2010').value) || 0,
+        P: parseFloat(document.getElementById('inputP').value) || 0,
+        T: parseFloat(document.getElementById('inputT').value) || 0,
+        lapangan: document.getElementById('inputLapangan').value,
+        MU: parseInt(document.getElementById('selectMU').value) || 200,
+        V1: parseInt(document.getElementById('selectV1').value) || 400,
+        V2: parseInt(document.getElementById('selectV2').value) || 100,
+        readings: {
+          m1: [parseFloat(document.getElementById('m1_1').value)||0, parseFloat(document.getElementById('m1_2').value)||0, parseFloat(document.getElementById('m1_3').value)||0],
+          mneg: [parseFloat(document.getElementById('mneg_1').value)||0, parseFloat(document.getElementById('mneg_2').value)||0, parseFloat(document.getElementById('mneg_3').value)||0],
+          m2: [parseFloat(document.getElementById('m2_1').value)||0, parseFloat(document.getElementById('m2_2').value)||0, parseFloat(document.getElementById('m2_3').value)||0]
+        },
+        calibrationSnapshot: {
+          NDW: activeCalibration.NDW,
+          kQ: activeCalibration.kQ,
+          pdd: activeCalibration.pdd,
+          T0: activeCalibration.T0,
+          P0: activeCalibration.P0,
+          targetDoseRate: activeCalibration.targetDoseRate,
+          chamberName: activeCalibration.chamberName
+        },
+        catatan: document.getElementById('inputCatatan').value,
+        results: { ...calculatedDetails },
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    function saveNewRecord() {
+      const record = collectCurrentFormData();
+      let records = getStoredRecords();
+      const existingIndex = records.findIndex(r => r.idRecord === record.idRecord);
+
+      if (existingIndex >= 0) {
+        showConfirm(`ID Record "${record.idRecord}" sudah ada. Timpa rekaman ini?`, () => {
+          records[existingIndex] = record;
+          saveRecordsToStorage(records);
+          sendToGoogleSheets('saveRecord', record);
+          showToast(`Record ${record.idRecord} diperbarui!`, "success");
+        });
+      } else {
+        records.unshift(record);
+        saveRecordsToStorage(records);
+        sendToGoogleSheets('saveRecord', record);
+        showToast(`Record ${record.idRecord} disimpan!`, "success");
+      }
+    }
+
+    function updateCurrentRecord() {
+      saveNewRecord();
+    }
+
+    function initDateTime() {
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const min = String(now.getMinutes()).padStart(2, '0');
+      const sec = String(now.getSeconds()).padStart(2, '0');
+      
+      const formatted = `${dd}/${mm}/${yyyy} ${hh}.${min}.${sec}`;
+      document.getElementById('displayTanggal').innerText = formatted;
+    }
+
+    function resetForm() {
+      initDateTime();
+      
+      document.getElementById('inputP').value = "";
+      document.getElementById('inputT').value = "";
+      document.getElementById('inputLapangan').value = "10x10";
+      document.getElementById('selectMU').value = "200";
+      document.getElementById('selectV1').value = "400";
+      document.getElementById('selectV2').value = "100";
+      
+      document.getElementById('m1_1').value = "";
+      document.getElementById('m1_2').value = "";
+      document.getElementById('m1_3').value = "";
+
+      document.getElementById('mneg_1').value = "";
+      document.getElementById('mneg_2').value = "";
+      document.getElementById('mneg_3').value = "";
+
+      document.getElementById('m2_1').value = "";
+      document.getElementById('m2_2').value = "";
+      document.getElementById('m2_3').value = "";
+
+      document.getElementById('inputCatatan').value = "";
+      document.getElementById('idRecord').value = generateAutoRecordId();
+
+      syncSelectedDetector();
+      initBeamQualityDatasets();
+      updateVoltageLabels();
+      calculateDose();
+    }
+
+    function updateVoltageLabels() {
+      const v1 = document.getElementById('selectV1').value;
+      const v2 = document.getElementById('selectV2').value;
+      
+      document.getElementById('thVoltRatio').innerText = `V ${v1}/${v2}`;
+      document.getElementById('thM1').innerText = `M1 [+${v1}]`;
+      document.getElementById('thMneg').innerText = `M [-${v1}]`;
+      document.getElementById('thM2').innerText = `M2 [+${v2}]`;
+    }
+
+    function openSearchModal() {
+      document.getElementById('searchModal').classList.remove('hidden');
+      renderHistoryTable();
+    }
+
+    function closeSearchModal() {
+      document.getElementById('searchModal').classList.add('hidden');
+    }
+
+    function renderHistoryTable() {
+      const records = getStoredRecords();
+      const keyword = (document.getElementById('filterKeyword').value || '').toLowerCase();
+      const tbody = document.getElementById('historyTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      const filtered = records.filter(r => 
+        (r.idRecord || '').toLowerCase().includes(keyword) ||
+        (r.namaPesawat || '').toLowerCase().includes(keyword) ||
+        (r.energi || '').toLowerCase().includes(keyword) ||
+        (r.tanggal || '').toLowerCase().includes(keyword)
+      );
+
+      document.getElementById('recordCountLabel').innerText = `${filtered.length} dari ${records.length} rekaman`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="p-6 text-center text-slate-400">Belum ada data pengukuran.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach((r) => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-50 transition border-b";
+        const devVal = r.results?.deviasi !== undefined ? (r.results.deviasi > 0 ? '+' : '') + r.results.deviasi.toFixed(2) + '%' : '-';
+        const dmaxVal = r.results?.Dzmax !== undefined ? r.results.Dzmax.toFixed(3) : '-';
+        const status = r.results?.status || 'OK';
+
+        let badgeColor = "bg-emerald-100 text-emerald-800";
+        if (status === "TOLERANSI") badgeColor = "bg-yellow-100 text-yellow-800";
+        if (status === "ADJUST") badgeColor = "bg-rose-100 text-rose-800";
+
+        tr.innerHTML = `
+          <td class="p-2 font-bold text-blue-900">${r.idRecord}</td>
+          <td class="p-2 text-slate-600">${r.tanggal || '-'}</td>
+          <td class="p-2 font-semibold">${r.namaPesawat} (${r.energi})</td>
+          <td class="p-2 font-mono font-bold">${dmaxVal} Gy</td>
+          <td class="p-2 font-mono font-bold">${devVal}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-[11px] font-black uppercase ${badgeColor}">${status}</span></td>
+          <td class="p-2 text-center flex justify-center gap-1.5">
+            <button type="button" onclick="loadRecord('${r.idRecord}')" class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs" title="Muat ke Form">
+              <i class="fa-solid fa-folder-open"></i>
+            </button>
+            <button type="button" onclick="confirmDeleteRecord('${r.idRecord}')" class="bg-rose-600 hover:bg-rose-700 text-white px-2 py-1 rounded text-xs" title="Hapus">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      renderKaTeX();
+    }
+
+    function loadRecord(idRecord) {
+      const records = getStoredRecords();
+      const r = records.find(item => item.idRecord === idRecord);
+      if (!r) return;
+
+      document.getElementById('idRecord').value = r.idRecord;
+      document.getElementById('displayTanggal').innerText = r.tanggal || '';
+      
+      const machineSelect = document.getElementById('namaPesawat');
+      if (Array.from(machineSelect.options).some(o => o.value === r.namaPesawat)) {
+        machineSelect.value = r.namaPesawat;
+      }
+      updateEnergyListForSelectedMachine();
+
+      const energySelect = document.getElementById('energi');
+      if (Array.from(energySelect.options).some(o => o.value === r.energi)) {
+        energySelect.value = r.energi;
+      }
+
+      if (r.detektorId) {
+        document.getElementById('detektor').value = r.detektorId;
+      }
+
+      document.getElementById('inputP').value = r.P;
+      document.getElementById('inputT').value = r.T;
+      document.getElementById('inputLapangan').value = r.lapangan;
+      document.getElementById('selectMU').value = r.MU;
+      document.getElementById('selectV1').value = r.V1;
+      document.getElementById('selectV2').value = r.V2;
+
+      if (r.readings) {
+        document.getElementById('m1_1').value = r.readings.m1[0] || '';
+        document.getElementById('m1_2').value = r.readings.m1[1] || '';
+        document.getElementById('m1_3').value = r.readings.m1[2] || '';
+
+        document.getElementById('mneg_1').value = r.readings.mneg[0] || '';
+        document.getElementById('mneg_2').value = r.readings.mneg[1] || '';
+        document.getElementById('mneg_3').value = r.readings.mneg[2] || '';
+
+        document.getElementById('m2_1').value = r.readings.m2[0] || '';
+        document.getElementById('m2_2').value = r.readings.m2[1] || '';
+        document.getElementById('m2_3').value = r.readings.m2[2] || '';
+      }
+
+      document.getElementById('inputCatatan').value = r.catatan || '';
+
+      if (r.calibrationSnapshot) {
+        activeCalibration = { ...activeCalibration, ...r.calibrationSnapshot };
+      }
+
+      syncSelectedDetector();
+      initBeamQualityDatasets();
+      if (r.bqDatasetId) {
+        document.getElementById('selectBQData').value = r.bqDatasetId;
+        syncSelectedBeamQuality();
+      }
+
+      updateVoltageLabels();
+      calculateDose();
+      closeSearchModal();
+      showToast(`Record ${idRecord} dimuat!`, "info");
+    }
+
+    function confirmDeleteRecord(idRecord) {
+      showConfirm(`Hapus data pengukuran ${idRecord}?`, () => {
+        let records = getStoredRecords();
+        records = records.filter(r => r.idRecord !== idRecord);
+        saveRecordsToStorage(records);
+        renderHistoryTable();
+        showToast(`Record ${idRecord} dihapus.`, "info");
+      });
+    }
+
+    function exportJSON() {
+      const records = getStoredRecords();
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(records, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `TRS398_Dosimetry_Backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importJSON(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (Array.isArray(imported)) {
+            const current = getStoredRecords();
+            const combined = [...imported, ...current.filter(c => !imported.some(i => i.idRecord === c.idRecord))];
+            saveRecordsToStorage(combined);
+            renderHistoryTable();
+            showToast(`Berhasil me-restore ${imported.length} rekaman!`, "success");
+          } else {
+            showToast("Format file JSON tidak valid!", "error");
+          }
+        } catch (err) {
+          showToast("Gagal membaca file backup JSON.", "error");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // OFFICIAL QA WORKSHEET REPORT GENERATION
+    function openOfficialReportModal() {
+      calculateDose();
+      
+      const formData = collectCurrentFormData();
+      const detectors = getStoredDetectors();
+      const machines = getStoredMachines();
+      const hospital = getHospitalInfo();
+
+      document.getElementById('repHospitalName').innerText = hospital.namaRS || "RUMAH SAKIT RSUD Dr. MOEWARDI SURAKARTA";
+      document.getElementById('repHospitalDept').innerText = hospital.namaDept || "INSTALASI RADIOTERAPI";
+      document.getElementById('repHospitalAddress').innerText = hospital.alamatRS || "Jl. Kol. Soetarto 132 Surakarta";
+
+      const logoImg = document.getElementById('repHospitalLogo');
+      if (logoImg) {
+        if (hospital.logoUrl && hospital.logoUrl.trim() !== '') {
+          logoImg.src = hospital.logoUrl;
+          logoImg.style.display = 'block';
+        } else {
+          logoImg.style.display = 'none';
+        }
+      }
+
+      const det = detectors.find(d => d.id === formData.detektorId) || detectors[0];
+      const mch = machines.find(m => m.name === formData.namaPesawat) || machines[0];
+
+      document.getElementById('repIdRecord').innerText = formData.idRecord || '-';
+      document.getElementById('repTanggal').innerText = formData.tanggal || '-';
+      document.getElementById('repPesawat').innerText = formData.namaPesawat || '-';
+      document.getElementById('repPesawatSN').innerText = mch ? (mch.sn || 'SN-NA') : '-';
+      document.getElementById('repEnergi').innerText = formData.energi || '-';
+      document.getElementById('repDetektor').innerText = det ? det.name : '-';
+      document.getElementById('repDetektorSN').innerText = det ? (det.sn || 'SN-NA') : '-';
+      document.getElementById('repNDW').innerText = `${(calculatedDetails.NDW || 0.05000).toFixed(5)} Gy/nC`;
+      document.getElementById('repKQ').innerText = (calculatedDetails.kQ || 0.9980).toFixed(4);
+      document.getElementById('repPDDInfo').innerText = `${(calculatedDetails.pdd || 65.1).toFixed(2)} % / ${(formData.tpr2010 || 0.683).toFixed(3)}`;
+
+      document.getElementById('repT').innerText = `${formData.T} °C`;
+      document.getElementById('repP').innerText = `${formData.P} kPa`;
+      document.getElementById('repKTP').innerText = (calculatedDetails.kTP || 1.000).toFixed(4);
+      document.getElementById('repLapangan').innerText = formData.lapangan;
+      document.getElementById('repMU').innerText = `${formData.MU} MU`;
+      document.getElementById('repVoltages').innerText = `+${formData.V1}V / +${formData.V2}V`;
+
+      document.getElementById('repThM1').innerText = `M1 (+${formData.V1}V)`;
+      document.getElementById('repThMneg').innerText = `M- (-${formData.V1}V)`;
+      document.getElementById('repThM2').innerText = `M2 (+${formData.V2}V)`;
+
+      document.getElementById('repM1_1').innerText = (formData.readings.m1[0] || 0).toFixed(2);
+      document.getElementById('repM1_2').innerText = (formData.readings.m1[1] || 0).toFixed(2);
+      document.getElementById('repM1_3').innerText = (formData.readings.m1[2] || 0).toFixed(2);
+
+      document.getElementById('repMneg_1').innerText = (formData.readings.mneg[0] || 0).toFixed(2);
+      document.getElementById('repMneg_2').innerText = (formData.readings.mneg[1] || 0).toFixed(2);
+      document.getElementById('repMneg_3').innerText = (formData.readings.mneg[2] || 0).toFixed(2);
+
+      document.getElementById('repM2_1').innerText = (formData.readings.m2[0] || 0).toFixed(2);
+      document.getElementById('repM2_2').innerText = (formData.readings.m2[1] || 0).toFixed(2);
+      document.getElementById('repM2_3').innerText = (formData.readings.m2[2] || 0).toFixed(2);
+
+      document.getElementById('repMeanM1').innerText = (calculatedDetails.meanM1 || 0).toFixed(2);
+      document.getElementById('repMeanMneg').innerText = (calculatedDetails.meanMneg || 0).toFixed(2);
+      document.getElementById('repMeanM2').innerText = (calculatedDetails.meanM2 || 0).toFixed(2);
+
+      document.getElementById('repKpol').innerText = (calculatedDetails.kpol || 1.000).toFixed(4);
+      document.getElementById('repKs').innerText = (calculatedDetails.ks || 1.000).toFixed(4);
+      document.getElementById('repMQ').innerText = `${(calculatedDetails.MQ || 0).toFixed(3)} nC`;
+
+      document.getElementById('repDzref').innerText = `${(calculatedDetails.Dzref || 0).toFixed(3)} Gy`;
+      document.getElementById('repDzmax').innerText = `${(calculatedDetails.Dzmax || 0).toFixed(3)} Gy`;
+      
+      const devVal = calculatedDetails.deviasi !== undefined ? ((calculatedDetails.deviasi > 0 ? '+' : '') + calculatedDetails.deviasi.toFixed(2) + '%') : '-';
+      document.getElementById('repDeviasi').innerText = devVal;
+      
+      const statusEl = document.getElementById('repStatus');
+      const st = calculatedDetails.status || 'OK';
+      statusEl.innerText = st;
+      if (st === 'OK') statusEl.className = "text-base font-black uppercase text-emerald-700";
+      else if (st === 'TOLERANSI') statusEl.className = "text-base font-black uppercase text-amber-700";
+      else statusEl.className = "text-base font-black uppercase text-rose-700";
+
+      document.getElementById('repCatatan').innerText = formData.catatan || 'Pengukuran diverifikasi dalam kondisi normal.';
+
+      renderStaffTables();
+      document.getElementById('reportModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeOfficialReportModal() {
+      document.getElementById('reportModal').classList.add('hidden');
+    }
+
+    // CALIBRATION MODAL HANDLERS
+    function openCalibrationModal() {
+      document.getElementById('cfgNDW').value = activeCalibration.NDW;
+      document.getElementById('cfgKQ').value = activeCalibration.kQ;
+      document.getElementById('cfgPDD').value = activeCalibration.pdd;
+      document.getElementById('cfgT0').value = activeCalibration.T0;
+      document.getElementById('cfgP0').value = activeCalibration.P0;
+      document.getElementById('cfgTargetDoseRate').value = activeCalibration.targetDoseRate;
+      document.getElementById('calibrationModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeCalibrationModal() {
+      document.getElementById('calibrationModal').classList.add('hidden');
+    }
+
+    function saveCalibrationSettings() {
+      activeCalibration.NDW = parseFloat(document.getElementById('cfgNDW').value) || 0.05000;
+      activeCalibration.kQ = parseFloat(document.getElementById('cfgKQ').value) || 0.9980;
+      activeCalibration.pdd = parseFloat(document.getElementById('cfgPDD').value) || 65.10;
+      activeCalibration.T0 = parseFloat(document.getElementById('cfgT0').value) || 20.0;
+      activeCalibration.P0 = parseFloat(document.getElementById('cfgP0').value) || 101.325;
+      activeCalibration.targetDoseRate = parseFloat(document.getElementById('cfgTargetDoseRate').value) || 1.00;
+
+      localStorage.setItem(CALIBRATION_KEY, JSON.stringify(activeCalibration));
+      sendToGoogleSheets('saveConfig', activeCalibration);
+      calculateDose();
+      closeCalibrationModal();
+      showToast("Parameter kalibrasi TRS-398 diperbarui!", "success");
+    }
+
+    function loadCalibrationSettings() {
+      const saved = localStorage.getItem(CALIBRATION_KEY);
+      if (saved) {
+        try {
+          activeCalibration = { ...activeCalibration, ...JSON.parse(saved) };
+        } catch(e){}
+      }
+    }
+
+    function toggleDetailsModal() {
+      const el = document.getElementById('detailsModal');
+      el.classList.toggle('hidden');
+      if (!el.classList.contains('hidden')) {
+        renderKaTeX();
+      }
+    }
+
+    // DASHBOARD STATISTIK LINAC & CHART.JS
+    function openDashboardModal() {
+      initDashboardDateFilters();
+      renderDashboard();
+      document.getElementById('dashboardModal').classList.remove('hidden');
+      renderKaTeX();
+    }
+
+    function closeDashboardModal() {
+      document.getElementById('dashboardModal').classList.add('hidden');
+    }
+
+    function initDashboardDateFilters() {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+
+      const startDateEl = document.getElementById('dashFilterStartDate');
+      const endDateEl = document.getElementById('dashFilterEndDate');
+
+      if (startDateEl && !startDateEl.value) {
+        startDateEl.value = `${currentYear}-01-01`;
+      }
+      if (endDateEl && !endDateEl.value) {
+        endDateEl.value = `${currentYear}-12-31`;
+      }
+    }
+
+    function resetDashboardFilters() {
+      const mchFilter = document.getElementById('dashFilterMachine');
+      if (mchFilter) mchFilter.value = 'ALL';
+
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      document.getElementById('dashFilterStartDate').value = `${currentYear}-01-01`;
+      document.getElementById('dashFilterEndDate').value = `${currentYear}-12-31`;
+
+      renderDashboard();
+    }
+
+    function renderDashboard() {
+      const records = getStoredRecords();
+      const selMachine = document.getElementById('dashFilterMachine').value;
+      const startDateVal = document.getElementById('dashFilterStartDate').value;
+      const endDateVal = document.getElementById('dashFilterEndDate').value;
+
+      const startDate = startDateVal ? new Date(startDateVal + "T00:00:00") : null;
+      const endDate = endDateVal ? new Date(endDateVal + "T23:59:59") : null;
+
+      const filtered = records.filter(r => {
+        if (selMachine !== 'ALL' && r.namaPesawat !== selMachine) return false;
+
+        let recDate = null;
+        if (r.timestamp) recDate = new Date(r.timestamp);
+        else if (r.tanggal) {
+          const parts = r.tanggal.split(' ')[0].split('/');
+          if (parts.length === 3) {
+            recDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          }
+        }
+
+        if (recDate && !isNaN(recDate.getTime())) {
+          if (startDate && recDate < startDate) return false;
+          if (endDate && recDate > endDate) return false;
+        }
+
+        return true;
+      });
+
+      filtered.sort((a, b) => new Date(a.timestamp || a.tanggal) - new Date(b.timestamp || b.tanggal));
+
+      const totalCount = filtered.length;
+      let sumDev = 0;
+      let maxAbsDev = 0;
+      let passCount = 0;
+      let countOK = 0, countTol = 0, countAdj = 0;
+
+      filtered.forEach(r => {
+        const dev = r.results?.deviasi || 0;
+        sumDev += dev;
+        if (Math.abs(dev) > maxAbsDev) maxAbsDev = Math.abs(dev);
+
+        const status = r.results?.status || 'OK';
+        if (status === 'OK') { countOK++; passCount++; }
+        else if (status === 'TOLERANSI') { countTol++; passCount++; }
+        else if (status === 'ADJUST') countAdj++;
+      });
+
+      const avgDev = totalCount > 0 ? sumDev / totalCount : 0;
+      const passRate = totalCount > 0 ? (passCount / totalCount) * 100 : 100;
+
+      document.getElementById('dashMetricTotal').innerText = totalCount;
+      document.getElementById('dashMetricAvgDev').innerText = `${avgDev > 0 ? '+' : ''}${avgDev.toFixed(2)}%`;
+      document.getElementById('dashMetricMaxDev').innerText = `${maxAbsDev.toFixed(2)}%`;
+      document.getElementById('dashMetricPassRate').innerText = `${passRate.toFixed(1)}%`;
+      document.getElementById('dashMetricPassCount').innerText = `${passCount}/${totalCount} OK`;
+
+      document.getElementById('cntPieOK').innerText = countOK;
+      document.getElementById('cntPieTol').innerText = countTol;
+      document.getElementById('cntPieAdj').innerText = countAdj;
+
+      renderDashboardTable(filtered);
+      renderDashboardCharts(filtered, countOK, countTol, countAdj);
+    }
+
+    function renderDashboardTable(filteredRecords) {
+      const tbody = document.getElementById('dashTableBody');
+      if (!tbody) return;
+      tbody.innerHTML = '';
+
+      if (filteredRecords.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-400">Tidak ada data pengukuran dalam rentang filter.</td></tr>`;
+        return;
+      }
+
+      filteredRecords.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-slate-100 border-b";
+
+        const dev = r.results?.deviasi !== undefined ? `${r.results.deviasi > 0 ? '+' : ''}${r.results.deviasi.toFixed(2)}%` : '-';
+        const st = r.results?.status || 'OK';
+
+        let badge = 'bg-emerald-100 text-emerald-800';
+        if (st === 'TOLERANSI') badge = 'bg-amber-100 text-amber-800';
+        if (st === 'ADJUST') badge = 'bg-rose-100 text-rose-800';
+
+        tr.innerHTML = `
+          <td class="p-1.5 font-bold text-blue-900">${r.idRecord}</td>
+          <td class="p-1.5 text-slate-600">${r.tanggal || '-'}</td>
+          <td class="p-1.5 font-semibold">${r.namaPesawat} (${r.energi})</td>
+          <td class="p-1.5 text-center font-mono font-bold">${dev}</td>
+          <td class="p-1.5 text-center"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${badge}">${st}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderDashboardCharts(records, cntOK, cntTol, cntAdj) {
+      const lineCanvas = document.getElementById('deviationChartCanvas');
+      if (lineCanvas) {
+        const ctxLine = lineCanvas.getContext('2d');
+        if (deviationChartInstance) deviationChartInstance.destroy();
+
+        const labels = records.map(r => r.idRecord);
+        const dataDev = records.map(r => r.results?.deviasi || 0);
+
+        deviationChartInstance = new Chart(ctxLine, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                label: 'Deviasi Dosis (%)',
+                data: dataDev,
+                borderColor: '#2563eb',
+                backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                borderWidth: 2.5,
+                pointRadius: 4,
+                pointBackgroundColor: records.map(r => {
+                  const dev = Math.abs(r.results?.deviasi || 0);
+                  if (dev <= 1.0) return '#10b981';
+                  if (dev <= 2.0) return '#f59e0b';
+                  return '#e11d48';
+                }),
+                tension: 0.2,
+                fill: true
+              },
+              {
+                label: '+1% Toleransi',
+                data: Array(labels.length).fill(1.0),
+                borderColor: '#10b981',
+                borderWidth: 1.5,
+                borderDash: [4, 4],
+                pointRadius: 0,
+                fill: false
+              },
+              {
+                label: '-1% Toleransi',
+                data: Array(labels.length).fill(-1.0),
+                borderColor: '#10b981',
+                borderWidth: 1.5,
+                borderDash: [4, 4],
+                pointRadius: 0,
+                fill: false
+              },
+              {
+                label: '+2% Adjust',
+                data: Array(labels.length).fill(2.0),
+                borderColor: '#f59e0b',
+                borderWidth: 1.5,
+                borderDash: [2, 2],
+                pointRadius: 0,
+                fill: false
+              },
+              {
+                label: '-2% Adjust',
+                data: Array(labels.length).fill(-2.0),
+                borderColor: '#f59e0b',
+                borderWidth: 1.5,
+                borderDash: [2, 2],
+                pointRadius: 0,
+                fill: false
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                title: { display: true, text: 'Deviasi Dosis (%)' },
+                suggestedMin: -3.0,
+                suggestedMax: 3.0
+              },
+              x: {
+                ticks: { maxRotation: 45, minRotation: 45 }
+              }
+            },
+            plugins: {
+              legend: { display: false }
+            }
+          }
+        });
+      }
+
+      const pieCanvas = document.getElementById('statusPieChartCanvas');
+      if (pieCanvas) {
+        const ctxPie = pieCanvas.getContext('2d');
+        if (pieChartInstance) pieChartInstance.destroy();
+
+        pieChartInstance = new Chart(ctxPie, {
+          type: 'doughnut',
+          data: {
+            labels: ['OK (≤ 1%)', 'Toleransi (1%-2%)', 'Adjust (> 2%)'],
+            datasets: [{
+              data: [cntOK, cntTol, cntAdj],
+              backgroundColor: ['#10b981', '#f59e0b', '#f43f5e'],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+      }
+    }
+
+    // CONFIRM MODAL & TOAST DIALOGS
+    let pendingConfirmAction = null;
+    function showConfirm(msg, actionCallback) {
+      document.getElementById('confirmModalMsg').innerText = msg;
+      pendingConfirmAction = actionCallback;
+      document.getElementById('confirmModal').classList.remove('hidden');
+    }
+
+    function executeConfirmModal() {
+      if (pendingConfirmAction) pendingConfirmAction();
+      closeConfirmModal();
+    }
+
+    function closeConfirmModal() {
+      pendingConfirmAction = null;
+      document.getElementById('confirmModal').classList.add('hidden');
+    }
+
+    let toastTimeout;
+    function showToast(msg, type = "success") {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+
+      if (!toast || !toastMsg || !toastIcon) return;
+
+      toastMsg.innerText = msg;
+      if (type === "success") {
+        toastIcon.className = "fa-solid fa-circle-check text-emerald-400";
+      } else if (type === "error") {
+        toastIcon.className = "fa-solid fa-circle-exclamation text-rose-400";
+      } else {
+        toastIcon.className = "fa-solid fa-circle-info text-sky-400";
+      }
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    function renderKaTeX() {
+      if (window.renderMathInElement) {
+        window.renderMathInElement(document.body, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false}
+          ],
+          throwOnError: false
+        });
+      }
+    }
+
+    // INITIALIZATION UPON PAGE LOAD
+    window.onload = function() {
+      initMachines();
+      initDetectors();
+      initBeamQualityDatasets();
+      loadCalibrationSettings();
+      updateVoltageLabels();
+      updateSidebarBranding();
+      resetForm();
+
+      const gsUrl = getGoogleSheetsUrl();
+      if (gsUrl) {
+        updateGoogleSheetsBadge(true);
+      } else {
+        updateGoogleSheetsBadge(false);
+      }
+
+      renderKaTeX();
+    };
+  </script>
+
+</body>
+</html>
